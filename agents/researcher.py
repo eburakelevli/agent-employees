@@ -1,6 +1,6 @@
 from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 from config import OPENAI_API_KEY, OPENAI_MODEL
 
 RESEARCHER_PROMPT = """You are a Research Agent. Your job is to research topics thoroughly and provide clear, concise summaries.
