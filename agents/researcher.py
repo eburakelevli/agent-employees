@@ -1,7 +1,6 @@
-from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
 from ddgs import DDGS
-from config import OPENAI_API_KEY, OPENAI_MODEL
+from llm import get_llm
 
 RESEARCHER_PROMPT = """You are a Research Agent. Your job is to research topics thoroughly and provide clear, concise summaries.
 
@@ -33,11 +32,7 @@ def web_search(query: str) -> str:
 
 async def run_researcher(message: str) -> str:
     """Run the researcher agent on a message."""
-    llm = ChatOpenAI(
-        model=OPENAI_MODEL,
-        api_key=OPENAI_API_KEY,
-        temperature=0.3,
-    ).bind_tools([web_search])
+    llm = get_llm(temperature=0.3).bind_tools([web_search])
 
     messages = [
         {"role": "system", "content": RESEARCHER_PROMPT},

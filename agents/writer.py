@@ -1,5 +1,4 @@
-from langchain_openai import ChatOpenAI
-from config import OPENAI_API_KEY, OPENAI_MODEL
+from llm import get_llm
 
 WRITER_PROMPT = """You are a Writing Agent. Your job is to draft content based on the user's request.
 
@@ -20,11 +19,7 @@ Guidelines:
 
 async def run_writer(message: str) -> str:
     """Run the writer agent on a message."""
-    llm = ChatOpenAI(
-        model=OPENAI_MODEL,
-        api_key=OPENAI_API_KEY,
-        temperature=0.7,
-    )
+    llm = get_llm(temperature=0.7)
 
     response = await llm.ainvoke([
         {"role": "system", "content": WRITER_PROMPT},

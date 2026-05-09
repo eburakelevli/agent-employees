@@ -1,5 +1,7 @@
 import asyncio
+from contextlib import asynccontextmanager, nullcontext
 import discord
+from config import LLM_PROVIDER, OLLAMA_MODEL, OPENAI_MODEL
 from langchain_community.callbacks import get_openai_callback
 
 from agents.planner import create_plan
@@ -86,6 +88,10 @@ async def _keepalive(status_msg: discord.Message, base_text: str, stop: asyncio.
             break
 
 
+def _active_model() -> str:
+    return OLLAMA_MODEL if LLM_PROVIDER == "ollama" else OPENAI_MODEL
+
+
 def _truncate(header: str, body: str) -> str:
     max_body = DISCORD_MSG_LIMIT - len(header)
     if len(body) > max_body:
@@ -130,13 +136,17 @@ class AgentBot(discord.Client):
                 break
 
         try:
-            with get_openai_callback() as cb:
+            ctx = get_openai_callback() if LLM_PROVIDER == "openai" else nullcontext()
+            with ctx as cb:
                 if forced_agent:
                     await self._run_single(message, forced_agent, content)
                 else:
                     await self._run_plan(message, content)
 
-            cost_line = f"`{cb.total_tokens:,} tokens · ${cb.total_cost:.5f}`"
+            if LLM_PROVIDER == "openai" and cb is not None:
+                cost_line = f"`{cb.total_tokens:,} tokens · ${cb.total_cost:.5f}`"
+            else:
+                cost_line = f"`local · {OLLAMA_MODEL}`"
             await message.channel.send(cost_line)
 
         except Exception as e:
@@ -144,7 +154,7 @@ class AgentBot(discord.Client):
             await message.reply("Something went wrong. Try again.")
 
     async def _run_single(self, message: discord.Message, agent: str, content: str):
-        status = await message.reply(f"⚙️ Running **{agent}**...")
+        status = await message.reply(f"⚙️ Running **{agent}**... · `{_active_model()}`")
 
         if agent == "researcher":
             result = await run_researcher(content)
@@ -154,7 +164,7 @@ class AgentBot(discord.Client):
         await status.edit(content=_truncate(f"**[{agent.upper()}]**\n", result))
 
     async def _run_plan(self, message: discord.Message, content: str):
-        status = await message.reply("🧠 **Planning your task...**")
+        status = await message.reply(f"🧠 **Planning your task...** · `{_active_model()}`")
 
         plan = await create_plan(content)
 

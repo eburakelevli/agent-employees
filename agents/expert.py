@@ -1,5 +1,4 @@
-from langchain_openai import ChatOpenAI
-from config import OPENAI_API_KEY, OPENAI_MODEL
+from llm import get_llm
 
 
 async def run_expert(role: str, task: str) -> str:
@@ -10,7 +9,7 @@ Guidelines:
 - Format for Discord (markdown sparingly, keep it readable)
 - Be concise unless the task requires depth"""
 
-    llm = ChatOpenAI(model=OPENAI_MODEL, api_key=OPENAI_API_KEY, temperature=0.3)
+    llm = get_llm(temperature=0.3)
     response = await llm.ainvoke([
         {"role": "system", "content": prompt},
         {"role": "user", "content": task},

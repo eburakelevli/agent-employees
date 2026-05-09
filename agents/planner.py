@@ -1,6 +1,5 @@
 import json
-from langchain_openai import ChatOpenAI
-from config import OPENAI_API_KEY, OPENAI_MODEL
+from llm import get_llm
 
 PLANNER_PROMPT = """You are a task planner for a multi-agent AI assistant. Break the user's request into an execution plan.
 
@@ -22,12 +21,7 @@ Return ONLY valid JSON in this exact format:
 
 
 async def create_plan(user_message: str) -> list:
-    llm = ChatOpenAI(
-        model=OPENAI_MODEL,
-        api_key=OPENAI_API_KEY,
-        temperature=0,
-        model_kwargs={"response_format": {"type": "json_object"}},
-    )
+    llm = get_llm(temperature=0, json_mode=True)
     response = await llm.ainvoke([
         {"role": "system", "content": PLANNER_PROMPT},
         {"role": "user", "content": user_message},
