@@ -3,6 +3,10 @@
 .env.*
 !.env.example
 
+# Runtime data
+conversation_history.json
+agent_memory.json
+
 # Python cache
 __pycache__/
 *.py[cod]

@@ -9,6 +9,7 @@ from agents.researcher import run_researcher
 from agents.writer import run_writer
 from agents.expert import run_expert
 from agents.summarizer import run_summarizer
+from tools.history import format_history, add_exchange
 
 DISCORD_MSG_LIMIT = 2000
 
@@ -48,10 +49,14 @@ def _build_context(step_results: list) -> str:
 STEP_TIMEOUT = 90  # seconds before a step is considered hung
 
 
-async def _dispatch(step: dict, context: str) -> str:
-    task = step["task"]
+async def _dispatch(step: dict, context: str, full_request: str = "") -> str:
+    parts = []
+    if full_request:
+        parts.append(f"Full user request (including conversation history):\n{full_request}")
     if context:
-        task = f"Previous agents have gathered:\n{context}\n\nYour task: {task}"
+        parts.append(f"Previous agents' outputs:\n{context}")
+    parts.append(f"Your specific task: {step['task']}")
+    task = "\n\n".join(parts)
 
     agent = step["agent"]
     role = step.get("role")
@@ -135,25 +140,33 @@ class AgentBot(discord.Client):
                 content = content[len(agent) + 1:].strip()
                 break
 
+        # Prepend conversation history so agents can answer questions about past exchanges
+        original_content = content
+        history = format_history(message.author.id)
+        if history:
+            content = f"{history}\n[CURRENT MESSAGE]\n{content}"
+
         try:
             ctx = get_openai_callback() if LLM_PROVIDER == "openai" else nullcontext()
             with ctx as cb:
                 if forced_agent:
-                    await self._run_single(message, forced_agent, content)
+                    result = await self._run_single(message, forced_agent, content)
                 else:
-                    await self._run_plan(message, content)
+                    result = await self._run_plan(message, content)
+
+            add_exchange(message.author.id, original_content, result or "")
 
             if LLM_PROVIDER == "openai" and cb is not None:
-                cost_line = f"`{cb.total_tokens:,} tokens · ${cb.total_cost:.5f}`"
+                cost_line = f"`{OPENAI_MODEL} · {cb.total_tokens:,} tokens · ${cb.total_cost:.5f}`"
             else:
-                cost_line = f"`local · {OLLAMA_MODEL}`"
+                cost_line = f"`{OLLAMA_MODEL} (local) · no API cost`"
             await message.channel.send(cost_line)
 
         except Exception as e:
             print(f"Error processing message: {e}")
             await message.reply("Something went wrong. Try again.")
 
-    async def _run_single(self, message: discord.Message, agent: str, content: str):
+    async def _run_single(self, message: discord.Message, agent: str, content: str) -> str:
         status = await message.reply(f"⚙️ Running **{agent}**... · `{_active_model()}`")
 
         if agent == "researcher":
@@ -162,8 +175,9 @@ class AgentBot(discord.Client):
             result = await run_writer(content)
 
         await status.edit(content=_truncate(f"**[{agent.upper()}]**\n", result))
+        return result
 
-    async def _run_plan(self, message: discord.Message, content: str):
+    async def _run_plan(self, message: discord.Message, content: str) -> str:
         status = await message.reply(f"🧠 **Planning your task...** · `{_active_model()}`")
 
         plan = await create_plan(content)
@@ -176,7 +190,7 @@ class AgentBot(discord.Client):
             stop = asyncio.Event()
             keepalive = asyncio.create_task(_keepalive(status, step_text, stop))
             try:
-                result = await _dispatch(step, _build_context(step_results))
+                result = await _dispatch(step, _build_context(step_results), content)
             finally:
                 stop.set()
                 keepalive.cancel()
@@ -197,3 +211,5 @@ class AgentBot(discord.Client):
             else:
                 header = f"**[STEP {i + 1} — {_agent_label(step)}]**\n"
             await message.channel.send(_truncate(header, step["result"]))
+
+        return step_results[-1]["result"] if step_results else ""

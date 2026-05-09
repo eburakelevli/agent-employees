@@ -1,16 +1,18 @@
 from langchain_core.tools import tool
 from ddgs import DDGS
 from llm import get_llm
+from tools.file_reader import read_file
 
 RESEARCHER_PROMPT = """You are a Research Agent. Your job is to research topics thoroughly and provide clear, concise summaries.
 
-You have access to a web search tool. Use it when you need current information.
+You have access to web search and file reading tools.
 
 Guidelines:
+- Use web_search for current information, facts, trends
+- Use read_file if the user references a local file path
 - Search first, then synthesize
 - Be concise but comprehensive
-- Cite what you found when relevant
-- If the user's question is simple, don't over-research it
+- Cite sources when relevant
 - Format your response for Discord (use markdown sparingly, keep it readable)"""
 
 
@@ -30,30 +32,30 @@ def web_search(query: str) -> str:
         return f"Search failed: {str(e)}"
 
 
+RESEARCHER_TOOLS = [web_search, read_file]
+RESEARCHER_TOOL_MAP = {t.name: t for t in RESEARCHER_TOOLS}
+
+
 async def run_researcher(message: str) -> str:
-    """Run the researcher agent on a message."""
-    llm = get_llm(temperature=0.3).bind_tools([web_search])
+    llm = get_llm(temperature=0.3).bind_tools(RESEARCHER_TOOLS)
 
     messages = [
         {"role": "system", "content": RESEARCHER_PROMPT},
         {"role": "user", "content": message},
     ]
 
-    # Agent loop: keep going until no more tool calls
     while True:
         response = await llm.ainvoke(messages)
         messages.append(response)
 
-        # If no tool calls, we're done
         if not response.tool_calls:
             return response.content
 
-        # Execute each tool call
         for tc in response.tool_calls:
-            if tc["name"] == "web_search":
-                result = web_search.invoke(tc["args"])
-                messages.append({
-                    "role": "tool",
-                    "content": result,
-                    "tool_call_id": tc["id"],
-                })
+            tool_fn = RESEARCHER_TOOL_MAP.get(tc["name"])
+            result = tool_fn.invoke(tc["args"]) if tool_fn else f"Unknown tool: {tc['name']}"
+            messages.append({
+                "role": "tool",
+                "content": result,
+                "tool_call_id": tc["id"],
+            })
