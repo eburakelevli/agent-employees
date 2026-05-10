@@ -48,7 +48,7 @@ gpt-4o-mini · 3,241 tokens · $0.00048
 | `read_file` | Researcher, Expert | Read any local file — text, code, PDF |
 | `run_python` | Expert | Execute Python code for calculations or data analysis |
 | `save_memory` | Expert | Persist a fact or preference across conversations |
-| `recall_memory` | Expert | Retrieve a previously saved memory |
+| `recall_memory` | Expert | Retrieve a previously saved memory (semantic if Pinecone backend is enabled) |
 | `list_memories` | Expert | List all stored memories |
 | `delete_memory` | Expert | Remove a stored memory |
 | `mcp_create_drive_folder` | Expert | Create Google Drive folders via MCP |
@@ -131,6 +131,32 @@ cp .env.example .env
 
 Edit `.env` with your keys — see `.env.example` for all available options.
 
+### Optional: Semantic memory with Pinecone
+
+By default, memory is a local JSON key-value store (`agent_memory.json`).
+
+To enable semantic memory (vector search):
+
+```env
+MEMORY_BACKEND=pinecone
+MEMORY_EMBEDDING_MODEL=text-embedding-3-small
+MEMORY_TOP_K=3
+
+PINECONE_API_KEY=your_pinecone_api_key_here
+PINECONE_INDEX_NAME=agent-employees-memory
+PINECONE_NAMESPACE=default
+PINECONE_CLOUD=aws
+PINECONE_REGION=us-east-1
+```
+
+How it works:
+- `save_memory(key, value)` embeds the memory text and upserts it to Pinecone with metadata.
+- `recall_memory(query)` performs semantic similarity search and returns the best match.
+- `list_memories()` reads known memory keys from a local manifest used for stable deletes.
+- `delete_memory(key)` removes the corresponding vector by ID from Pinecone.
+
+If Pinecone credentials/dependencies are missing, the app continues using local memory.
+
 ### Optional: Google Workspace MCP (Drive/Docs/Slides)
 
 If you run a compatible Google Workspace MCP server, set:
@@ -191,7 +217,7 @@ agent-employees/
 │   ├── code_runner.py  # Python code execution
 │   ├── file_reader.py  # Local file reading (text + PDF)
 │   ├── history.py      # Per-user conversation history
-│   └── memory.py       # Persistent key-value memory
+│   └── memory.py       # Local or Pinecone-backed semantic memory
 ├── graph/
 │   └── workflow.py     # LangGraph state graph definition
 ├── bot.py              # Discord bot, orchestration, progress updates

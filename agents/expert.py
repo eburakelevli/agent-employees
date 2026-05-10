@@ -26,7 +26,7 @@ EXPERT_PROMPT_TEMPLATE = """You are a {role}. You are highly experienced and pro
 You have access to tools:
 - read_file: read any local file (pass the full path)
 - run_python: execute Python code for calculations, analysis, or data processing
-- save_memory / recall_memory / list_memories / delete_memory: persist information across conversations
+- save_memory / recall_memory / list_memories / delete_memory: persist information across conversations (recall can be semantic if Pinecone backend is enabled)
 - mcp_create_drive_folder: create a Google Drive folder via MCP
 - mcp_create_google_doc: create a Google Doc in Drive via MCP
 - mcp_create_google_slides: create a Google Slides deck in Drive via MCP
