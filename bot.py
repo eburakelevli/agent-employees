@@ -1,7 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager, nullcontext
 import discord
-from config import LLM_PROVIDER, OLLAMA_MODEL, OPENAI_MODEL
+from config import LLM_PROVIDER, OLLAMA_MODEL, OPENAI_MODEL, CLAUDE_MODEL
 from langchain_community.callbacks import get_openai_callback
 
 from agents.planner import create_plan
@@ -94,7 +94,11 @@ async def _keepalive(status_msg: discord.Message, base_text: str, stop: asyncio.
 
 
 def _active_model() -> str:
-    return OLLAMA_MODEL if LLM_PROVIDER == "ollama" else OPENAI_MODEL
+    if LLM_PROVIDER == "ollama":
+        return OLLAMA_MODEL
+    if LLM_PROVIDER == "claude":
+        return CLAUDE_MODEL
+    return OPENAI_MODEL
 
 
 def _truncate(header: str, body: str) -> str:
@@ -158,6 +162,8 @@ class AgentBot(discord.Client):
 
             if LLM_PROVIDER == "openai" and cb is not None:
                 cost_line = f"`{OPENAI_MODEL} · {cb.total_tokens:,} tokens · ${cb.total_cost:.5f}`"
+            elif LLM_PROVIDER == "claude":
+                cost_line = f"`{CLAUDE_MODEL}`"
             else:
                 cost_line = f"`{OLLAMA_MODEL} (local) · no API cost`"
             await message.channel.send(cost_line)

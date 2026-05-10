@@ -1,4 +1,9 @@
-from config import LLM_PROVIDER, OPENAI_API_KEY, OPENAI_MODEL, OLLAMA_BASE_URL, OLLAMA_MODEL
+from config import (
+    LLM_PROVIDER,
+    OPENAI_API_KEY, OPENAI_MODEL,
+    OLLAMA_BASE_URL, OLLAMA_MODEL,
+    ANTHROPIC_API_KEY, CLAUDE_MODEL,
+)
 
 
 def get_llm(temperature: float = 0.7, json_mode: bool = False):
@@ -10,6 +15,15 @@ def get_llm(temperature: float = 0.7, json_mode: bool = False):
             base_url=OLLAMA_BASE_URL,
             temperature=temperature,
             format="json" if json_mode else None,
+        )
+
+    if LLM_PROVIDER == "claude":
+        from langchain_anthropic import ChatAnthropic
+        # Claude follows prompt instructions precisely — no special json_mode param needed
+        return ChatAnthropic(
+            model=CLAUDE_MODEL,
+            api_key=ANTHROPIC_API_KEY,
+            temperature=temperature,
         )
 
     from langchain_openai import ChatOpenAI
