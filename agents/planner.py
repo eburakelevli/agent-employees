@@ -12,12 +12,14 @@ Available agents and their tools:
 Rules:
 - The user message may be prefixed with conversation history — use it as context but plan only for the current request at the bottom
 - Simple requests (one clear output): 1-2 steps max
-- Follow-up or history questions (e.g. "what did I ask?", "expand on that"): single expert step, role "Conversational Assistant"
+- Follow-up or history questions (e.g. "what did I ask?", "expand on that"): use {"agent": "expert", "role": "Conversational Assistant", "task": "..."} — never use "Conversational Assistant" as the agent field
 - Complex requests: break into logical sequential steps where later steps build on earlier ones
 - For plans with 3+ steps, always end with a summarizer step
 - Expert roles must be specific and descriptive, not just "Expert"
 - Task descriptions must be specific and actionable
 - If the user mentions a file path, include it in the relevant step's task description
+
+The "agent" field must be one of exactly: "researcher", "writer", "expert", "summarizer". Nothing else is valid.
 
 Return ONLY valid JSON in this exact format:
 {"steps": [{"agent": "...", "role": null, "task": "..."}, ...]}"""
