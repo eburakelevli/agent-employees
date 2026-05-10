@@ -51,6 +51,9 @@ gpt-4o-mini · 3,241 tokens · $0.00048
 | `recall_memory` | Expert | Retrieve a previously saved memory |
 | `list_memories` | Expert | List all stored memories |
 | `delete_memory` | Expert | Remove a stored memory |
+| `mcp_create_drive_folder` | Expert | Create Google Drive folders via MCP |
+| `mcp_create_google_doc` | Expert | Create Google Docs via MCP |
+| `mcp_create_google_slides` | Expert | Create Google Slides decks via MCP |
 
 ---
 
@@ -127,6 +130,18 @@ cp .env.example .env
 ```
 
 Edit `.env` with your keys — see `.env.example` for all available options.
+
+### Optional: Google Workspace MCP (Drive/Docs/Slides)
+
+If you run a compatible Google Workspace MCP server, set:
+
+```env
+GOOGLE_WORKSPACE_MCP_URL=http://localhost:8000/mcp
+GOOGLE_WORKSPACE_MCP_BEARER_TOKEN=optional_bearer_token
+GOOGLE_WORKSPACE_MCP_TIMEOUT_SECONDS=30
+```
+
+The Expert agent can then create Drive folders, Docs, and Slides with MCP tools.
 
 ### 4. Run
 
