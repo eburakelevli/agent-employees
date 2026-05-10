@@ -8,35 +8,49 @@ Built with [LangGraph](https://github.com/langchain-ai/langgraph), [LangChain](h
 
 ## How it works
 
-Every message goes through a **Planner** that breaks the task into steps and assigns each one to a specialist agent. Agents pass context to one another so each step builds on the last.
+Every message goes through a **Planner** that breaks the task into steps and assigns each one to a specialist agent. Agents pass context to one another so each step builds on the last. Progress is shown live as each step completes.
 
 ```
 You: @agent-employees build a content strategy for my AI startup
 
-Planner creates:
-  ⚙️ 1. RESEARCHER      — current AI startup trends
-  ⏳ 2. RESEARCHER      — competitor landscape
-  ⏳ 3. EXPERT: Marketing Strategist — content strategy
-  ⏳ 4. SUMMARIZER      — final synthesis
-
+🧠 Planning your task... · `gpt-4o-mini`
+↓
+Running plan:
+✅ 1. RESEARCHER — current AI startup trends
+⚙️ 2. EXPERT: Marketing Strategist
+⏳ 3. SUMMARIZER
+↓
 [STEP 1 — RESEARCHER] ...
-[STEP 2 — RESEARCHER] ...
-[STEP 3 — EXPERT: Marketing Strategist] ...
+[STEP 2 — EXPERT: Marketing Strategist] ...
 [FINAL SYNTHESIS] ...
-3,241 tokens · $0.00048
+gpt-4o-mini · 3,241 tokens · $0.00048
 ```
 
 ---
 
 ## Agents
 
-| Agent | Role |
-|-------|------|
-| **Planner** | Breaks any task into steps, assigns agents, coordinates context passing |
-| **Researcher** | Web search, fact-finding, trend analysis, current events |
-| **Writer** | Emails, blog posts, social media copy, articles, drafts |
-| **Expert** | Any domain expertise — the Planner assigns a specific role (e.g. Senior Software Engineer, Senior AI Engineer, Product Manager) |
-| **Summarizer** | Synthesizes outputs from multiple agents into a final response |
+| Agent | Role | Tools |
+|-------|------|-------|
+| **Planner** | Breaks any task into steps, assigns agents, coordinates context passing | — |
+| **Researcher** | Web search, fact-finding, trend analysis, current events | `web_search`, `read_file` |
+| **Writer** | Emails, blog posts, social media copy, articles, drafts | — |
+| **Expert** | Any domain expertise — Planner assigns a specific role (e.g. Senior Software Engineer, Senior AI Engineer, Product Manager) | `read_file`, `run_python`, `save_memory`, `recall_memory`, `list_memories`, `delete_memory` |
+| **Summarizer** | Synthesizes outputs from multiple agents into a final response | — |
+
+---
+
+## Tools
+
+| Tool | Available to | Description |
+|------|-------------|-------------|
+| `web_search` | Researcher | DuckDuckGo web search |
+| `read_file` | Researcher, Expert | Read any local file — text, code, PDF |
+| `run_python` | Expert | Execute Python code for calculations or data analysis |
+| `save_memory` | Expert | Persist a fact or preference across conversations |
+| `recall_memory` | Expert | Retrieve a previously saved memory |
+| `list_memories` | Expert | List all stored memories |
+| `delete_memory` | Expert | Remove a stored memory |
 
 ---
 
@@ -47,6 +61,7 @@ Planner creates:
 @agent-employees review this system architecture: ...
 @agent-employees write a cold outreach email to a VC firm
 @agent-employees what are the best index funds for a UK investor?
+@agent-employees read /path/to/report.pdf and summarise it
 ```
 
 **Target an agent directly (faster for simple tasks):**
@@ -55,7 +70,34 @@ Planner creates:
 @agent-employees researcher: latest news on OpenAI
 ```
 
-Token usage is shown after every response so you can track API costs.
+**Follow-up questions work across messages:**
+```
+@agent-employees what is the best Python web framework?
+@agent-employees what was my previous question?
+@agent-employees expand on that
+```
+
+The active model and token usage are shown after every response.
+
+---
+
+## LLM Providers
+
+Supports **OpenAI** and **Ollama** (local models). Set `LLM_PROVIDER` in your `.env` to switch.
+
+```env
+# OpenAI (default)
+LLM_PROVIDER=openai
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-4o-mini
+
+# Ollama (local — run `ollama serve` first)
+LLM_PROVIDER=ollama
+OLLAMA_MODEL=llama3.2        # or mistral, qwen2.5, etc.
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+> **Note:** The Researcher uses tool calling (web search). This requires a model that supports it — `llama3.1`, `llama3.2`, `qwen2.5`, and `mistral-nemo` all work. Older models will answer from training data only.
 
 ---
 
@@ -84,13 +126,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit `.env`:
-
-```env
-DISCORD_BOT_TOKEN=your_discord_bot_token_here
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-4o-mini
-```
+Edit `.env` with your keys — see `.env.example` for all available options.
 
 ### 4. Run
 
@@ -116,8 +152,13 @@ The `Procfile` is already included.
 ## Adding a new agent
 
 1. Create `agents/your_agent.py` with an `async def run_your_agent(task: str) -> str` function
-2. Add it to the `_dispatch` function in `bot.py`
+2. Add it to `_dispatch` in `bot.py`
 3. Add it to the available agents list in the Planner prompt in `agents/planner.py`
+
+## Adding a new tool
+
+1. Create `tools/your_tool.py` with a `@tool` decorated function
+2. Import it in the relevant agent(s) and add it to that agent's `bind_tools(...)` call
 
 ---
 
@@ -128,13 +169,19 @@ agent-employees/
 ├── agents/
 │   ├── expert.py       # Generic expert — any role assigned by the Planner
 │   ├── planner.py      # Creates execution plans from user tasks
-│   ├── researcher.py   # Web search via DuckDuckGo + LLM synthesis
+│   ├── researcher.py   # Web search + file reading
 │   ├── summarizer.py   # Synthesizes multi-agent outputs
 │   └── writer.py       # Content and copy writing
+├── tools/
+│   ├── code_runner.py  # Python code execution
+│   ├── file_reader.py  # Local file reading (text + PDF)
+│   ├── history.py      # Per-user conversation history
+│   └── memory.py       # Persistent key-value memory
 ├── graph/
 │   └── workflow.py     # LangGraph state graph definition
 ├── bot.py              # Discord bot, orchestration, progress updates
 ├── config.py           # Environment variable loading
+├── llm.py              # LLM provider factory (OpenAI / Ollama)
 ├── main.py             # Entry point
 └── requirements.txt
 ```
