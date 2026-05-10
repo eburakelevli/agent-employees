@@ -13,7 +13,7 @@ Every message goes through a **Planner** that breaks the task into steps and ass
 ```
 You: @agent-employees build a content strategy for my AI startup
 
-🧠 Planning your task... · `gpt-4o-mini`
+🧠 Planning your task... · `gpt-5.5`
 ↓
 Running plan:
 ✅ 1. RESEARCHER — current AI startup trends
@@ -23,7 +23,7 @@ Running plan:
 [STEP 1 — RESEARCHER] ...
 [STEP 2 — EXPERT: Marketing Strategist] ...
 [FINAL SYNTHESIS] ...
-gpt-4o-mini · 3,241 tokens · $0.00048
+gpt-5.5 · 3,241 tokens · $0.00048
 ```
 
 ---
@@ -92,11 +92,15 @@ Supports **OpenAI** and **Ollama** (local models). Set `LLM_PROVIDER` in your `.
 # OpenAI (default)
 LLM_PROVIDER=openai
 OPENAI_API_KEY=your_key_here
-OPENAI_MODEL=gpt-4o-mini
+OPENAI_MODEL=gpt-5.5
+
+# Antrophic
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+CLAUDE_MODEL=claude-sonnet-4-6
 
 # Ollama (local — run `ollama serve` first)
 LLM_PROVIDER=ollama
-OLLAMA_MODEL=llama3.2        # or mistral, qwen2.5, etc.
+OLLAMA_MODEL=gemma4       # or mistral, qwen2.5, etc.
 OLLAMA_BASE_URL=http://localhost:11434
 ```
 
