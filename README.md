@@ -194,7 +194,15 @@ Edit `.env` with your keys — see `.env.example` for all available options.
 
 By default, memory is a local JSON key-value store (`agent_memory.json`).
 
-To enable semantic memory (vector search):
+To enable semantic memory (vector search), first install the Pinecone package:
+
+```bash
+pip install pinecone
+```
+
+> **Note:** The package is called `pinecone`, not `pinecone-client`. Installing `pinecone-client` will cause an import error at startup.
+
+Then add to your `.env`:
 
 ```env
 MEMORY_BACKEND=pinecone
@@ -207,6 +215,14 @@ PINECONE_NAMESPACE=default
 PINECONE_CLOUD=aws
 PINECONE_REGION=us-east-1
 ```
+
+To confirm it's active, check the startup log — you should see:
+```
+Memory backend: Pinecone (index=agent-employees-memory, namespace=default)
+```
+If it says `local`, one of the required env vars is missing or the package isn't installed.
+
+**Viewing your vectors:** Go to [console.pinecone.io](https://console.pinecone.io) → select your index → **Namespace** tab to browse records and inspect metadata (`key`, `value`, `created_at`). The **Metrics** tab shows read/write usage and storage.
 
 How it works:
 - `save_memory(key, value)` embeds the memory text and upserts it to Pinecone with metadata.
