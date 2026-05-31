@@ -5,6 +5,10 @@ load_dotenv()
 
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 
+# Slack
+SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
+SLACK_APP_TOKEN = os.getenv("SLACK_APP_TOKEN")
+
 # LLM provider — "openai", "claude", or "ollama"
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
 

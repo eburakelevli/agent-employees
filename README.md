@@ -1,8 +1,8 @@
 # Agent Employees
 
-A multi-agent Discord bot that acts as your personal AI team. Give it a task and it plans the work, delegates to the right specialists, and shows you live progress — all inside Discord.
+A multi-agent bot that acts as your personal AI team. Give it a task and it plans the work, delegates to the right specialists, and shows you live progress — available on **Discord** and **Slack**.
 
-Built with [LangGraph](https://github.com/langchain-ai/langgraph), [LangChain](https://github.com/langchain-ai/langchain), and [discord.py](https://github.com/Rapptz/discord.py).
+Built with [LangGraph](https://github.com/langchain-ai/langgraph), [LangChain](https://github.com/langchain-ai/langchain), [discord.py](https://github.com/Rapptz/discord.py), and [slack-bolt](https://github.com/slackapi/bolt-python).
 
 ---
 
@@ -80,7 +80,7 @@ gpt-5.5 · 3,241 tokens · $0.00048
 @agent-employees expand on that
 ```
 
-The active model and token usage are shown after every response.
+Works the same way on both Discord and Slack — just `@mention` the bot. The active model and token usage are shown after every response.
 
 ---
 
@@ -126,6 +126,38 @@ pip install -r requirements.txt
 4. Under **Privileged Gateway Intents**, enable **Message Content Intent**
 5. Go to **OAuth2 → URL Generator** → select scope `bot` → permissions: `Send Messages`, `Read Message History`, `View Channels`
 6. Open the generated URL in your browser to add the bot to your server
+
+### 2b. Create a Slack bot (optional — skip if using Discord only)
+
+> Uses **Socket Mode** — no public URL or server needed, works locally or on Railway out of the box.
+
+1. Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From scratch**
+2. Name it (e.g. `agent-employees`) and pick your workspace → **Create App**
+
+**Enable Socket Mode:**
+3. In the left sidebar go to **Socket Mode** → toggle **Enable Socket Mode** ON
+4. It will prompt you to create an App-Level Token — name it anything, grant the `connections:write` scope → **Generate**
+5. Copy the token (starts with `xapp-`) — this is your `SLACK_APP_TOKEN`
+
+**Add Bot permissions:**
+6. Go to **OAuth & Permissions** in the sidebar
+7. Under **Bot Token Scopes** add: `app_mentions:read`, `chat:write`, `channels:history`, `im:history`
+8. Go to **Install App** → **Install to Workspace** → Allow
+9. Copy the **Bot User OAuth Token** (starts with `xoxb-`) — this is your `SLACK_BOT_TOKEN`
+
+**Subscribe to events:**
+10. Go to **Event Subscriptions** → toggle **Enable Events** ON
+11. Under **Subscribe to bot events** add: `app_mention`
+12. Click **Save Changes**
+
+**Invite the bot to a channel:**
+13. In Slack, open any channel → type `/invite @agent-employees`
+
+Add both tokens to your `.env`:
+```env
+SLACK_BOT_TOKEN=xoxb-your-token-here
+SLACK_APP_TOKEN=xapp-your-token-here
+```
 
 ### 3. Configure environment
 
@@ -175,8 +207,14 @@ The Expert agent can then create Drive folders, Docs, and Slides with MCP tools.
 
 ### 4. Run
 
+**Discord:**
 ```bash
 python main.py
+```
+
+**Slack:**
+```bash
+python main.py --slack
 ```
 
 ---
@@ -190,14 +228,14 @@ For 24/7 uptime without running it locally, deploy to [Railway](https://railway.
 3. Add your environment variables in the **Variables** tab
 4. Railway auto-deploys on every push
 
-The `Procfile` is already included.
+The `Procfile` is already included. To run the Slack bot on Railway, set the start command to `python main.py --slack` in the Railway service settings (or update the `Procfile`).
 
 ---
 
 ## Adding a new agent
 
 1. Create `agents/your_agent.py` with an `async def run_your_agent(task: str) -> str` function
-2. Add it to `_dispatch` in `bot.py`
+2. Add it to `_dispatch` in both `bot.py` (Discord) and `slack_bot.py` (Slack)
 3. Add it to the available agents list in the Planner prompt in `agents/planner.py`
 
 ## Adding a new tool
@@ -224,10 +262,11 @@ agent-employees/
 │   └── memory.py       # Local or Pinecone-backed semantic memory
 ├── graph/
 │   └── workflow.py     # LangGraph state graph definition
-├── bot.py              # Discord bot, orchestration, progress updates
+├── bot.py              # Discord bot — orchestration, progress updates
+├── slack_bot.py        # Slack bot — same logic, Socket Mode transport
 ├── config.py           # Environment variable loading
-├── llm.py              # LLM provider factory (OpenAI / Ollama)
-├── main.py             # Entry point
+├── llm.py              # LLM provider factory (OpenAI / Ollama / Claude)
+├── main.py             # Entry point (--slack flag for Slack mode)
 └── requirements.txt
 ```
 
