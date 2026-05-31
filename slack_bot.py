@@ -233,4 +233,8 @@ async def _run_plan(say, client, channel: str, content: str) -> str:
 async def main():
     handler = AsyncSocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
     print("Starting Agent Employees bot (Slack)...")
-    await handler.start_async()
+    try:
+        await handler.start_async()
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        await handler.close_async()
+        print("\nSlack bot stopped.")
