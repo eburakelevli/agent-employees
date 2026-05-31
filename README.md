@@ -6,6 +6,29 @@ Built with [LangGraph](https://github.com/langchain-ai/langgraph), [LangChain](h
 
 ---
 
+## Table of Contents
+
+- [How it works](#how-it-works)
+- [Agents](#agents)
+- [Tools](#tools)
+- [Usage](#usage)
+- [LLM Providers](#llm-providers)
+- [Setup](#setup)
+  - [1. Clone and install](#1-clone-and-install)
+  - [2. Create a Discord bot](#2-create-a-discord-bot)
+  - [2b. Create a Slack bot](#2b-create-a-slack-bot-optional--skip-if-using-discord-only)
+  - [3. Configure environment](#3-configure-environment)
+  - [Optional: Semantic memory with Pinecone](#optional-semantic-memory-with-pinecone)
+  - [Optional: Google Workspace MCP](#optional-google-workspace-mcp-driveslides)
+  - [4. Run](#4-run)
+- [Deployment](#deployment)
+- [Adding a new agent](#adding-a-new-agent)
+- [Adding a new tool](#adding-a-new-tool)
+- [Project structure](#project-structure)
+- [License](#license)
+
+---
+
 ## How it works
 
 Every message goes through a **Planner** that breaks the task into steps and assigns each one to a specialist agent. Agents pass context to one another so each step builds on the last. Progress is shown live as each step completes.
@@ -193,7 +216,7 @@ How it works:
 
 If Pinecone credentials/dependencies are missing, the app continues using local memory.
 
-### Optional: Google Workspace MCP (Drive/Docs/Slides)
+### Optional: Google Workspace MCP (Drive/Slides)
 
 If you run a compatible Google Workspace MCP server, set:
 
