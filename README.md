@@ -232,17 +232,67 @@ How it works:
 
 If Pinecone credentials/dependencies are missing, the app continues using local memory.
 
-### Optional: Google Workspace MCP (Drive/Slides)
+### Optional: Google Workspace MCP (Drive/Docs/Slides)
 
-If you run a compatible Google Workspace MCP server, set:
+This repo calls a remote/local MCP server over HTTP. It does not host Google OAuth directly.
+
+#### 1) Start a Google Workspace MCP server
+
+One working option:
+- [taylorwilsdon/google_workspace_mcp](https://github.com/taylorwilsdon/google_workspace_mcp)
+
+Export your Google OAuth client values, then start the server:
+
+```bash
+export GOOGLE_OAUTH_CLIENT_ID="your_client_id.apps.googleusercontent.com"
+export GOOGLE_OAUTH_CLIENT_SECRET="your_client_secret"
+uvx workspace-mcp --transport streamable-http
+```
+
+#### 2) Configure this app
+
+Set these in `.env`:
 
 ```env
-GOOGLE_WORKSPACE_MCP_URL=http://localhost:8000/mcp
-GOOGLE_WORKSPACE_MCP_BEARER_TOKEN=optional_bearer_token
+GOOGLE_WORKSPACE_MCP_URL=http://127.0.0.1:8000/mcp
+GOOGLE_WORKSPACE_MCP_BEARER_TOKEN=
 GOOGLE_WORKSPACE_MCP_TIMEOUT_SECONDS=30
 ```
 
-The Expert agent can then create Drive folders, Docs, and Slides with MCP tools.
+`GOOGLE_WORKSPACE_MCP_BEARER_TOKEN` is only needed if your MCP server requires bearer auth.
+
+#### 3) Verify MCP endpoint
+
+Quick browser click to `/mcp` may show:
+- `406 Not Acceptable` (expected for plain browser requests)
+
+The endpoint is still healthy as long as the server process is running.
+
+#### 4) Run and test from Slack
+
+Restart the app after env changes:
+
+```bash
+python main.py --slack
+```
+
+Then test direct Expert tool usage:
+
+```text
+@agent-employees expert: use mcp_create_drive_folder to create a folder named "AE MCP Test". Return only the folder ID.
+```
+
+Create a document in that folder:
+
+```text
+@agent-employees expert: use mcp_create_google_doc with title "AE MCP Doc", folder_id "<PASTE_FOLDER_ID>", content "hello from mcp test"
+```
+
+#### Notes
+
+- If you do not pass `folder_id` / `parent_folder_id`, tools default to Google Drive `root`.
+- If Slack still says MCP URL is not configured, restart the bot process after editing `.env`.
+- For reliable tool calling during setup, prefer `LLM_PROVIDER=openai` or `LLM_PROVIDER=claude`.
 
 ### 4. Run
 
