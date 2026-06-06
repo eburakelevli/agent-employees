@@ -23,6 +23,7 @@ class MCPClient:
         self.timeout = GOOGLE_WORKSPACE_MCP_TIMEOUT_SECONDS
         self._id = 1
         self._initialized = False
+        self._session_id = None
 
     def _headers(self) -> dict:
         headers = {
@@ -31,6 +32,8 @@ class MCPClient:
         }
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
+        if self._session_id:
+            headers["mcp-session-id"] = self._session_id
         return headers
 
     def _post(self, payload: dict) -> dict:
@@ -46,6 +49,9 @@ class MCPClient:
 
         try:
             with request.urlopen(req, timeout=self.timeout) as resp:
+                session_id = resp.headers.get("mcp-session-id")
+                if session_id:
+                    self._session_id = session_id
                 raw = resp.read().decode("utf-8", errors="ignore").strip()
         except error.HTTPError as e:
             body = e.read().decode("utf-8", errors="ignore")

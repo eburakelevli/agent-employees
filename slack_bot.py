@@ -136,7 +136,7 @@ async def handle_mention(event, say, client):
         return
 
     forced_agent = None
-    for agent in ("writer", "researcher"):
+    for agent in ("writer", "researcher", "expert"):
         if content.lower().startswith(f"{agent}:"):
             forced_agent = agent
             content = content[len(agent) + 1:].strip()
@@ -176,6 +176,8 @@ async def _run_single(say, client, channel: str, agent: str, content: str) -> st
 
     if agent == "researcher":
         result = await run_researcher(content)
+    elif agent == "expert":
+        result = await run_expert("Expert", content)
     else:
         result = await run_writer(content)
 
