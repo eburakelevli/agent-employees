@@ -19,7 +19,7 @@ Built with [LangGraph](https://github.com/langchain-ai/langgraph), [LangChain](h
   - [2b. Create a Slack bot](#2b-create-a-slack-bot-optional--skip-if-using-discord-only)
   - [3. Configure environment](#3-configure-environment)
   - [Optional: Semantic memory with Pinecone](#optional-semantic-memory-with-pinecone)
-  - [Optional: Google Workspace MCP](#optional-google-workspace-mcp-driveslides)
+  - [Optional: Google Workspace MCP (Drive/Docs/Slides)](#optional-google-workspace-mcp-drivedocsslides)
   - [4. Run](#4-run)
 - [Deployment](#deployment)
 - [Adding a new agent](#adding-a-new-agent)
@@ -236,6 +236,11 @@ If Pinecone credentials/dependencies are missing, the app continues using local 
 
 This repo calls a remote/local MCP server over HTTP. It does not host Google OAuth directly.
 
+How the pieces fit:
+- `agent-employees` is the MCP client. It sends JSON-RPC calls to `GOOGLE_WORKSPACE_MCP_URL`.
+- The Google Workspace MCP server is a separate process you run locally/remotely.
+- Google OAuth credentials (`client_id` / `client_secret`) are for the MCP server process, not this repo's MCP URL env vars.
+
 #### 1) Start a Google Workspace MCP server
 
 One working option:
@@ -249,6 +254,8 @@ export GOOGLE_OAUTH_CLIENT_SECRET="your_client_secret"
 uvx workspace-mcp --transport streamable-http
 ```
 
+First run may prompt an OAuth login flow in your browser.
+
 #### 2) Configure this app
 
 Set these in `.env`:
@@ -260,6 +267,7 @@ GOOGLE_WORKSPACE_MCP_TIMEOUT_SECONDS=30
 ```
 
 `GOOGLE_WORKSPACE_MCP_BEARER_TOKEN` is only needed if your MCP server requires bearer auth.
+`GOOGLE_WORKSPACE_MCP_URL` is the MCP endpoint this app will call (default local path: `/mcp` on port `8000`).
 
 #### 3) Verify MCP endpoint
 
@@ -293,6 +301,7 @@ Create a document in that folder:
 - If you do not pass `folder_id` / `parent_folder_id`, tools default to Google Drive `root`.
 - If Slack still says MCP URL is not configured, restart the bot process after editing `.env`.
 - For reliable tool calling during setup, prefer `LLM_PROVIDER=openai` or `LLM_PROVIDER=claude`.
+- If startup logs show `Google Workspace MCP: not configured`, `.env` was not loaded or the key is missing.
 
 ### 4. Run
 
