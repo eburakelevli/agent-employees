@@ -1,9 +1,35 @@
 import asyncio
-import sys
+import argparse
 
 from config import DISCORD_BOT_TOKEN, SLACK_BOT_TOKEN, SLACK_APP_TOKEN
 from config import GOOGLE_WORKSPACE_MCP_URL
+import config
 from tools.memory import _using_pinecone
+
+PROVIDERS = ("openai", "claude", "ollama")
+
+
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Run Agent Employees.")
+    parser.add_argument(
+        "mode",
+        nargs="?",
+        choices=("discord", "slack"),
+        default="discord",
+        help="Chat platform to run. Defaults to discord.",
+    )
+    parser.add_argument(
+        "--slack",
+        action="store_true",
+        help="Run Slack bot. Equivalent to passing 'slack'.",
+    )
+    parser.add_argument(
+        "--provider",
+        choices=PROVIDERS,
+        default=None,
+        help="LLM provider to use for this run. Overrides LLM_PROVIDER in .env.",
+    )
+    return parser.parse_args()
 
 
 def _print_memory_status():
@@ -21,15 +47,30 @@ def _print_mcp_status():
         print("Google Workspace MCP: not configured")
 
 
+def _active_model() -> str:
+    if config.LLM_PROVIDER == "ollama":
+        return config.OLLAMA_MODEL
+    if config.LLM_PROVIDER == "claude":
+        return config.CLAUDE_MODEL
+    return config.OPENAI_MODEL
+
+
+def _print_llm_status():
+    print(f"LLM provider: {config.LLM_PROVIDER} ({_active_model()})")
+
+
 def main():
-    use_slack = "--slack" in sys.argv or any(
-        a.lower() == "slack" for a in sys.argv[1:]
-    )
+    args = _parse_args()
+    if args.provider:
+        config.LLM_PROVIDER = args.provider
+
+    use_slack = args.slack or args.mode == "slack"
 
     if use_slack:
         if not SLACK_BOT_TOKEN or not SLACK_APP_TOKEN:
             print("Error: SLACK_BOT_TOKEN and SLACK_APP_TOKEN must be set in .env")
             return
+        _print_llm_status()
         _print_memory_status()
         _print_mcp_status()
         from slack_bot import main as slack_main
@@ -38,6 +79,7 @@ def main():
         if not DISCORD_BOT_TOKEN:
             print("Error: DISCORD_BOT_TOKEN not set in .env")
             return
+        _print_llm_status()
         _print_memory_status()
         _print_mcp_status()
         from bot import AgentBot

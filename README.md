@@ -109,7 +109,7 @@ Works the same way on both Discord and Slack — just `@mention` the bot. The ac
 
 ## LLM Providers
 
-Supports **OpenAI** and **Ollama** (local models). Set `LLM_PROVIDER` in your `.env` to switch.
+Supports **OpenAI**, **Claude**, and **Ollama** (local models). Set `LLM_PROVIDER` in your `.env` to choose the default provider, or override it per run with `--provider`.
 
 ```env
 # OpenAI (default)
@@ -313,6 +313,14 @@ python main.py
 **Slack:**
 ```bash
 python main.py --slack
+```
+
+**Override the LLM provider for one run:**
+```bash
+python main.py --provider openai
+python main.py --provider claude
+python main.py --provider ollama
+python main.py slack --provider ollama
 ```
 
 ---
