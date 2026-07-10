@@ -19,7 +19,7 @@ Built with [LangGraph](https://github.com/langchain-ai/langgraph), [LangChain](h
   - [2b. Create a Slack bot](#2b-create-a-slack-bot-optional--skip-if-using-discord-only)
   - [3. Configure environment](#3-configure-environment)
   - [Optional: Semantic memory with Pinecone](#optional-semantic-memory-with-pinecone)
-  - [Optional: Google Workspace MCP (Drive/Docs/Slides)](#optional-google-workspace-mcp-drivedocsslides)
+  - [Optional: Google Workspace MCP (Drive/Docs/Slides/Sheets)](#optional-google-workspace-mcp-drivedocsslidessheets)
   - [4. Run](#4-run)
 - [Deployment](#deployment)
 - [Adding a new agent](#adding-a-new-agent)
@@ -77,6 +77,7 @@ gpt-5.5 · 3,241 tokens · $0.00048
 | `mcp_create_drive_folder` | Expert | Create Google Drive folders via MCP |
 | `mcp_create_google_doc` | Expert | Create Google Docs via MCP |
 | `mcp_create_google_slides` | Expert | Create Google Slides decks via MCP |
+| `mcp_create_google_sheet` | Expert | Create Google Sheets spreadsheets via MCP |
 
 ---
 
@@ -232,7 +233,7 @@ How it works:
 
 If Pinecone credentials/dependencies are missing, the app continues using local memory.
 
-### Optional: Google Workspace MCP (Drive/Docs/Slides)
+### Optional: Google Workspace MCP (Drive/Docs/Slides/Sheets)
 
 This repo calls a remote/local MCP server over HTTP. It does not host Google OAuth directly.
 
@@ -294,6 +295,12 @@ Create a document in that folder:
 
 ```text
 @agent-employees expert: use mcp_create_google_doc with title "AE MCP Doc", folder_id "<PASTE_FOLDER_ID>", content "hello from mcp test"
+```
+
+Create a spreadsheet in that folder:
+
+```text
+@agent-employees expert: use mcp_create_google_sheet with title "AE MCP Sheet", folder_id "<PASTE_FOLDER_ID>"
 ```
 
 #### Notes

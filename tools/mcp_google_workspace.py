@@ -171,3 +171,20 @@ def mcp_create_google_slides(title: str, folder_id: str = "root") -> str:
         return _extract_text_result(response)
     except Exception as e:
         return f"MCP create google slides failed: {e}"
+
+
+@tool
+def mcp_create_google_sheet(title: str, folder_id: str = "root") -> str:
+    """Create a Google Sheets file in Drive via MCP. Uses create_drive_file with Sheets mime type."""
+    try:
+        response = _MCP.call_tool(
+            "create_drive_file",
+            {
+                "file_name": title,
+                "folder_id": folder_id,
+                "mime_type": "application/vnd.google-apps.spreadsheet",
+            },
+        )
+        return _extract_text_result(response)
+    except Exception as e:
+        return f"MCP create google sheet failed: {e}"

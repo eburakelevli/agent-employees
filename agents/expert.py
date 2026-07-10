@@ -6,6 +6,7 @@ from tools.mcp_google_workspace import (
     mcp_create_drive_folder,
     mcp_create_google_doc,
     mcp_create_google_slides,
+    mcp_create_google_sheet,
 )
 
 EXPERT_TOOLS = [
@@ -18,6 +19,7 @@ EXPERT_TOOLS = [
     mcp_create_drive_folder,
     mcp_create_google_doc,
     mcp_create_google_slides,
+    mcp_create_google_sheet,
 ]
 EXPERT_TOOL_MAP = {t.name: t for t in EXPERT_TOOLS}
 
@@ -30,6 +32,7 @@ You have access to tools:
 - mcp_create_drive_folder: create a Google Drive folder via MCP
 - mcp_create_google_doc: create a Google Doc in Drive via MCP
 - mcp_create_google_slides: create a Google Slides deck in Drive via MCP
+- mcp_create_google_sheet: create a Google Sheets spreadsheet in Drive via MCP
 
 Guidelines:
 - Use tools when they genuinely help — don't use them for things you can answer directly
