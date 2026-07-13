@@ -133,12 +133,12 @@ class AgentBot(discord.Client):
         if not content:
             await message.reply(
                 "Give me a task and I'll plan it across agents.\n"
-                "Or target one directly: `writer: <request>` or `researcher: <request>`"
+                "Or target one directly: `writer: <request>`, `researcher: <request>`, or `expert: <request>`"
             )
             return
 
         forced_agent = None
-        for agent in ("writer", "researcher"):
+        for agent in ("writer", "researcher", "expert"):
             if content.lower().startswith(f"{agent}:"):
                 forced_agent = agent
                 content = content[len(agent) + 1:].strip()
@@ -177,6 +177,8 @@ class AgentBot(discord.Client):
 
         if agent == "researcher":
             result = await run_researcher(content)
+        elif agent == "expert":
+            result = await run_expert("Expert", content)
         else:
             result = await run_writer(content)
 

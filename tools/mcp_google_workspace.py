@@ -7,6 +7,7 @@ from config import (
     GOOGLE_WORKSPACE_MCP_URL,
     GOOGLE_WORKSPACE_MCP_BEARER_TOKEN,
     GOOGLE_WORKSPACE_MCP_TIMEOUT_SECONDS,
+    GOOGLE_WORKSPACE_USER_EMAIL,
 )
 
 
@@ -59,8 +60,11 @@ class MCPClient:
         except Exception as e:
             raise RuntimeError(f"MCP request failed: {e}") from e
 
+        if not raw:
+            return {}
+
         # Some MCP servers stream SSE payloads; keep this parser minimal and robust.
-        if raw.startswith("data:"):
+        if any(line.startswith("data:") for line in raw.splitlines()):
             lines = [line[5:].strip() for line in raw.splitlines() if line.startswith("data:")]
             raw = lines[-1] if lines else "{}"
 
@@ -109,6 +113,13 @@ class MCPClient:
 _MCP = MCPClient()
 
 
+def _google_user_email(user_google_email: str = "") -> str:
+    email = user_google_email or GOOGLE_WORKSPACE_USER_EMAIL
+    if not email:
+        raise RuntimeError("GOOGLE_WORKSPACE_USER_EMAIL is not configured")
+    return email
+
+
 def _extract_text_result(response: dict) -> str:
     result = response.get("result", {})
     content = result.get("content")
@@ -126,12 +137,20 @@ def _extract_text_result(response: dict) -> str:
 
 
 @tool
-def mcp_create_drive_folder(folder_name: str, parent_folder_id: str = "root") -> str:
+def mcp_create_drive_folder(
+    folder_name: str,
+    parent_folder_id: str = "root",
+    user_google_email: str = "",
+) -> str:
     """Create a Google Drive folder via MCP. Returns the server response text."""
     try:
         response = _MCP.call_tool(
             "create_drive_folder",
-            {"folder_name": folder_name, "parent_folder_id": parent_folder_id},
+            {
+                "user_google_email": _google_user_email(user_google_email),
+                "folder_name": folder_name,
+                "parent_folder_id": parent_folder_id,
+            },
         )
         return _extract_text_result(response)
     except Exception as e:
@@ -139,17 +158,23 @@ def mcp_create_drive_folder(folder_name: str, parent_folder_id: str = "root") ->
 
 
 @tool
-def mcp_create_google_doc(title: str, folder_id: str = "root", content: str = "") -> str:
+def mcp_create_google_doc(
+    title: str,
+    folder_id: str = "root",
+    content: str = "",
+    user_google_email: str = "",
+) -> str:
     """Create a Google Doc file in Drive via MCP. Uses create_drive_file with Google Doc mime type."""
-    args = {
-        "file_name": title,
-        "folder_id": folder_id,
-        "mime_type": "application/vnd.google-apps.document",
-    }
-    if content:
-        args["content"] = content
-
     try:
+        args = {
+            "user_google_email": _google_user_email(user_google_email),
+            "file_name": title,
+            "folder_id": folder_id,
+            "mime_type": "application/vnd.google-apps.document",
+        }
+        if content:
+            args["content"] = content
+
         response = _MCP.call_tool("create_drive_file", args)
         return _extract_text_result(response)
     except Exception as e:
@@ -157,12 +182,17 @@ def mcp_create_google_doc(title: str, folder_id: str = "root", content: str = ""
 
 
 @tool
-def mcp_create_google_slides(title: str, folder_id: str = "root") -> str:
+def mcp_create_google_slides(
+    title: str,
+    folder_id: str = "root",
+    user_google_email: str = "",
+) -> str:
     """Create a Google Slides file in Drive via MCP. Uses create_drive_file with Slides mime type."""
     try:
         response = _MCP.call_tool(
             "create_drive_file",
             {
+                "user_google_email": _google_user_email(user_google_email),
                 "file_name": title,
                 "folder_id": folder_id,
                 "mime_type": "application/vnd.google-apps.presentation",
@@ -174,12 +204,28 @@ def mcp_create_google_slides(title: str, folder_id: str = "root") -> str:
 
 
 @tool
-def mcp_create_google_sheet(title: str, folder_id: str = "root") -> str:
+def mcp_create_google_sheet(
+    title: str,
+    folder_id: str = "root",
+    user_google_email: str = "",
+) -> str:
     """Create a Google Sheets file in Drive via MCP. Uses create_drive_file with Sheets mime type."""
     try:
+        email = _google_user_email(user_google_email)
+        if folder_id == "root":
+            response = _MCP.call_tool(
+                "create_spreadsheet",
+                {
+                    "user_google_email": email,
+                    "title": title,
+                },
+            )
+            return _extract_text_result(response)
+
         response = _MCP.call_tool(
             "create_drive_file",
             {
+                "user_google_email": email,
                 "file_name": title,
                 "folder_id": folder_id,
                 "mime_type": "application/vnd.google-apps.spreadsheet",

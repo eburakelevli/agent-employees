@@ -235,19 +235,42 @@ If Pinecone credentials/dependencies are missing, the app continues using local 
 
 ### Optional: Google Workspace MCP (Drive/Docs/Slides/Sheets)
 
-This repo calls a remote/local MCP server over HTTP. It does not host Google OAuth directly.
+This repo calls a remote/local MCP server over HTTP. It does not host Google OAuth directly and does not need your Google OAuth client secret.
 
 How the pieces fit:
 - `agent-employees` is the MCP client. It sends JSON-RPC calls to `GOOGLE_WORKSPACE_MCP_URL`.
 - The Google Workspace MCP server is a separate process you run locally/remotely.
-- Google OAuth credentials (`client_id` / `client_secret`) are for the MCP server process, not this repo's MCP URL env vars.
+- Google OAuth credentials (`client_id` / `client_secret`) are for the MCP server process, not this repo's app process.
+- `GOOGLE_WORKSPACE_USER_EMAIL` tells the MCP server which already-authorized Google account to use. It does not grant access by itself; access comes from the Google OAuth consent flow.
 
-#### 1) Start a Google Workspace MCP server
+#### 1) Create Google OAuth credentials
 
-One working option:
+In Google Cloud Console:
+
+1. Create or select a Google Cloud project.
+2. Enable these APIs:
+   - Google Drive API
+   - Google Sheets API
+3. Go to **APIs & Services -> OAuth consent screen**.
+4. For personal Gmail accounts, use:
+   - User type: `External`
+   - Publishing status: `Testing`
+   - Test users: add your Gmail address
+5. Go to **APIs & Services -> Credentials**.
+6. Create an **OAuth client ID**.
+7. Use application type **Desktop app**.
+8. Copy the generated:
+   - Client ID
+   - Client secret
+
+Do not publish the app for local testing. Keeping it in `Testing` limits authorization to the test users you add.
+
+#### 2) Start a Google Workspace MCP server separately
+
+One working MCP server option:
 - [taylorwilsdon/google_workspace_mcp](https://github.com/taylorwilsdon/google_workspace_mcp)
 
-Export your Google OAuth client values, then start the server:
+In a separate terminal, export the Google OAuth values for the MCP server process, then start it:
 
 ```bash
 export GOOGLE_OAUTH_CLIENT_ID="your_client_id.apps.googleusercontent.com"
@@ -257,7 +280,9 @@ uvx workspace-mcp --transport streamable-http
 
 First run may prompt an OAuth login flow in your browser.
 
-#### 2) Configure this app
+Keep this MCP terminal running while the bot is running.
+
+#### 3) Configure this app
 
 Set these in `.env`:
 
@@ -265,36 +290,48 @@ Set these in `.env`:
 GOOGLE_WORKSPACE_MCP_URL=http://127.0.0.1:8000/mcp
 GOOGLE_WORKSPACE_MCP_BEARER_TOKEN=
 GOOGLE_WORKSPACE_MCP_TIMEOUT_SECONDS=30
+GOOGLE_WORKSPACE_USER_EMAIL=your.email@gmail.com
 ```
 
 `GOOGLE_WORKSPACE_MCP_BEARER_TOKEN` is only needed if your MCP server requires bearer auth.
 `GOOGLE_WORKSPACE_MCP_URL` is the MCP endpoint this app will call (default local path: `/mcp` on port `8000`).
+`GOOGLE_WORKSPACE_USER_EMAIL` must match the Google account you authorized in the MCP browser OAuth flow.
 
-#### 3) Verify MCP endpoint
+Do not put `GOOGLE_OAUTH_CLIENT_SECRET` in this repo's `.env` unless you also change your MCP server startup to read it from there. This app does not use that value.
+
+#### 4) Verify MCP endpoint
 
 Quick browser click to `/mcp` may show:
 - `406 Not Acceptable` (expected for plain browser requests)
 
 The endpoint is still healthy as long as the server process is running.
 
-#### 4) Run and test from Slack
+#### 5) Run and test
 
 Restart the app after env changes:
 
+Discord:
+
 ```bash
-python main.py --slack
+python main.py --provider openai
+```
+
+Slack:
+
+```bash
+python main.py --slack --provider openai
 ```
 
 Then test direct Expert tool usage:
 
 ```text
-@agent-employees expert: use mcp_create_drive_folder to create a folder named "AE MCP Test". Return only the folder ID.
+@agent-employees expert: use mcp_create_google_sheet with title "AE MCP Sheet" and folder_id "root"
 ```
 
-Create a document in that folder:
+Create a Drive folder:
 
 ```text
-@agent-employees expert: use mcp_create_google_doc with title "AE MCP Doc", folder_id "<PASTE_FOLDER_ID>", content "hello from mcp test"
+@agent-employees expert: use mcp_create_drive_folder to create a folder named "AE MCP Test". Return only the folder ID.
 ```
 
 Create a spreadsheet in that folder:
@@ -306,9 +343,11 @@ Create a spreadsheet in that folder:
 #### Notes
 
 - If you do not pass `folder_id` / `parent_folder_id`, tools default to Google Drive `root`.
+- To find a folder ID, open the folder in Google Drive and copy the part after `/folders/` in the URL.
 - If Slack still says MCP URL is not configured, restart the bot process after editing `.env`.
 - For reliable tool calling during setup, prefer `LLM_PROVIDER=openai` or `LLM_PROVIDER=claude`.
 - If startup logs show `Google Workspace MCP: not configured`, `.env` was not loaded or the key is missing.
+- Removing `GOOGLE_WORKSPACE_USER_EMAIL` disables this app from selecting your Google account, but it does not revoke OAuth access. Revoke access from Google Account -> Security -> Third-party apps & services.
 
 ### 4. Run
 
