@@ -1,6 +1,6 @@
 # Agent Employees
 
-A multi-agent bot that acts as your personal AI team. Give it a task and it plans the work, delegates to the right specialists, and shows you live progress — available on **Discord** and **Slack**.
+A multi-agent bot that acts as your personal AI team. Give it a task and it plans the work, delegates to the right specialists, and shows live progress in **Discord** or **Slack**.
 
 Built with [LangGraph](https://github.com/langchain-ai/langgraph), [LangChain](https://github.com/langchain-ai/langchain), [discord.py](https://github.com/Rapptz/discord.py), and [slack-bolt](https://github.com/slackapi/bolt-python).
 
@@ -31,12 +31,14 @@ Built with [LangGraph](https://github.com/langchain-ai/langgraph), [LangChain](h
 
 ## How it works
 
-Every message goes through a **Planner** that breaks the task into steps and assigns each one to a specialist agent. Agents pass context to one another so each step builds on the last. Progress is shown live as each step completes.
+Most messages go through a **Planner** that breaks the task into steps and assigns each one to a specialist agent. Agents pass context to one another so each step builds on the last. Progress is shown live as each step completes.
+
+For simple requests, you can bypass planning by prefixing the message with `writer:`, `researcher:`, or `expert:`.
 
 ```
 You: @agent-employees build a content strategy for my AI startup
 
-🧠 Planning your task... · `gpt-5.5`
+🧠 Planning your task... · `gpt-4o-mini`
 ↓
 Running plan:
 ✅ 1. RESEARCHER — current AI startup trends
@@ -46,7 +48,7 @@ Running plan:
 [STEP 1 — RESEARCHER] ...
 [STEP 2 — EXPERT: Marketing Strategist] ...
 [FINAL SYNTHESIS] ...
-gpt-5.5 · 3,241 tokens · $0.00048
+gpt-4o-mini · 3,241 tokens · $0.00048
 ```
 
 ---
@@ -58,7 +60,7 @@ gpt-5.5 · 3,241 tokens · $0.00048
 | **Planner** | Breaks any task into steps, assigns agents, coordinates context passing | — |
 | **Researcher** | Web search, fact-finding, trend analysis, current events | `web_search`, `read_file` |
 | **Writer** | Emails, blog posts, social media copy, articles, drafts | — |
-| **Expert** | Any domain expertise — Planner assigns a specific role (e.g. Senior Software Engineer, Senior AI Engineer, Product Manager) | `read_file`, `run_python`, `save_memory`, `recall_memory`, `list_memories`, `delete_memory` |
+| **Expert** | Any domain expertise — Planner assigns a specific role (e.g. Senior Software Engineer, Senior AI Engineer, Product Manager) | `read_file`, `run_python`, memory tools, Google Workspace MCP tools |
 | **Summarizer** | Synthesizes outputs from multiple agents into a final response | — |
 
 ---
@@ -95,6 +97,7 @@ gpt-5.5 · 3,241 tokens · $0.00048
 ```
 @agent-employees writer: write a tweet about multi-agent AI
 @agent-employees researcher: latest news on OpenAI
+@agent-employees expert: remember that my preferred tone is direct and concise
 ```
 
 **Follow-up questions work across messages:**
@@ -104,7 +107,12 @@ gpt-5.5 · 3,241 tokens · $0.00048
 @agent-employees expand on that
 ```
 
-Works the same way on both Discord and Slack — just `@mention` the bot. The active model and token usage are shown after every response.
+In Discord, you can `@mention` the bot in a server or send it a DM. In Slack, `@mention` it in a channel where it has been invited. The active model is shown after every response, and OpenAI runs also show token usage and estimated cost.
+
+Runtime data is stored locally by default:
+- Conversation history: `conversation_history.json`
+- Local memory: `agent_memory.json`
+- Pinecone delete manifest: `agent_memory_manifest.json`
 
 ---
 
@@ -116,15 +124,15 @@ Supports **OpenAI**, **Claude**, and **Ollama** (local models). Set `LLM_PROVIDE
 # OpenAI (default)
 LLM_PROVIDER=openai
 OPENAI_API_KEY=your_key_here
-OPENAI_MODEL=gpt-5.5
+OPENAI_MODEL=gpt-4o-mini
 
-# Antrophic
+# Anthropic / Claude
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 CLAUDE_MODEL=claude-sonnet-4-6
 
 # Ollama (local — run `ollama serve` first)
 LLM_PROVIDER=ollama
-OLLAMA_MODEL=gemma4       # or mistral, qwen2.5, etc.
+OLLAMA_MODEL=llama3.2     # or mistral, qwen2.5, etc.
 OLLAMA_BASE_URL=http://localhost:11434
 ```
 
@@ -139,8 +147,12 @@ OLLAMA_BASE_URL=http://localhost:11434
 ```bash
 git clone https://github.com/your-username/agent-employees.git
 cd agent-employees
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+Requires Python 3.10 or newer.
 
 ### 2. Create a Discord bot
 
@@ -191,17 +203,28 @@ cp .env.example .env
 
 Edit `.env` with your keys — see `.env.example` for all available options.
 
+Set the token for the platform you plan to run, plus credentials for your chosen LLM provider:
+
+```env
+# Discord mode
+DISCORD_BOT_TOKEN=your_discord_bot_token_here
+
+# Slack mode
+SLACK_BOT_TOKEN=xoxb-your-token-here
+SLACK_APP_TOKEN=xapp-your-token-here
+
+# Pick one provider
+LLM_PROVIDER=openai
+OPENAI_API_KEY=your_openai_api_key_here
+```
+
 ### Optional: Semantic memory with Pinecone
 
 By default, memory is a local JSON key-value store (`agent_memory.json`).
 
-To enable semantic memory (vector search), first install the Pinecone package:
+To enable semantic memory (vector search), set `MEMORY_BACKEND=pinecone` and provide Pinecone plus OpenAI credentials. The `pinecone` package is already included in `requirements.txt`.
 
-```bash
-pip install pinecone
-```
-
-> **Note:** The package is called `pinecone`, not `pinecone-client`. Installing `pinecone-client` will cause an import error at startup.
+> **Note:** Semantic memory uses OpenAI embeddings, so `OPENAI_API_KEY` is required even when your chat provider is Claude or Ollama.
 
 Then add to your `.env`:
 
@@ -231,7 +254,7 @@ How it works:
 - `list_memories()` reads known memory keys from a local manifest used for stable deletes.
 - `delete_memory(key)` removes the corresponding vector by ID from Pinecone.
 
-If Pinecone credentials/dependencies are missing, the app continues using local memory.
+If Pinecone credentials or dependencies are missing, the app continues using local memory.
 
 ### Optional: Google Workspace MCP (Drive/Docs/Slides/Sheets)
 
@@ -380,7 +403,13 @@ For 24/7 uptime without running it locally, deploy to [Railway](https://railway.
 3. Add your environment variables in the **Variables** tab
 4. Railway auto-deploys on every push
 
-The `Procfile` is already included. To run the Slack bot on Railway, set the start command to `python main.py --slack` in the Railway service settings (or update the `Procfile`).
+The included `Procfile` runs Discord mode:
+
+```procfile
+worker: python main.py
+```
+
+To run Slack mode on Railway, set the service start command to `python main.py --slack` or update the `Procfile`.
 
 ---
 
@@ -389,6 +418,7 @@ The `Procfile` is already included. To run the Slack bot on Railway, set the sta
 1. Create `agents/your_agent.py` with an `async def run_your_agent(task: str) -> str` function
 2. Add it to `_dispatch` in both `bot.py` (Discord) and `slack_bot.py` (Slack)
 3. Add it to the available agents list in the Planner prompt in `agents/planner.py`
+4. If you want direct-prefix support, add it to the forced-agent list in both `bot.py` and `slack_bot.py`
 
 ## Adding a new tool
 
@@ -405,15 +435,17 @@ agent-employees/
 │   ├── expert.py       # Generic expert — any role assigned by the Planner
 │   ├── planner.py      # Creates execution plans from user tasks
 │   ├── researcher.py   # Web search + file reading
+│   ├── router.py       # Legacy/simple OpenAI router helper
 │   ├── summarizer.py   # Synthesizes multi-agent outputs
 │   └── writer.py       # Content and copy writing
 ├── tools/
 │   ├── code_runner.py  # Python code execution
 │   ├── file_reader.py  # Local file reading (text + PDF)
 │   ├── history.py      # Per-user conversation history
+│   ├── mcp_google_workspace.py # Google Workspace MCP tools
 │   └── memory.py       # Local or Pinecone-backed semantic memory
 ├── graph/
-│   └── workflow.py     # LangGraph state graph definition
+│   └── workflow.py     # LangGraph state graph definition (not the default entry path)
 ├── bot.py              # Discord bot — orchestration, progress updates
 ├── slack_bot.py        # Slack bot — same logic, Socket Mode transport
 ├── config.py           # Environment variable loading
