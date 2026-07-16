@@ -2,7 +2,7 @@
 
 A multi-agent bot that acts as your personal AI team. Give it a task and it plans the work, delegates to the right specialists, and shows live progress in **Discord** or **Slack**.
 
-Built with [LangGraph](https://github.com/langchain-ai/langgraph), [LangChain](https://github.com/langchain-ai/langchain), [discord.py](https://github.com/Rapptz/discord.py), and [slack-bolt](https://github.com/slackapi/bolt-python).
+Built with [LangChain](https://github.com/langchain-ai/langchain), [discord.py](https://github.com/Rapptz/discord.py), and [slack-bolt](https://github.com/slackapi/bolt-python). Orchestration (planning + step dispatch) is hand-rolled in `bot.py`/`slack_bot.py`; a [LangGraph](https://github.com/langchain-ai/langgraph) state-graph version of the same flow lives in `graph/workflow.py` as an alternate implementation, not the default entry path.
 
 ---
 
@@ -18,8 +18,8 @@ Built with [LangGraph](https://github.com/langchain-ai/langgraph), [LangChain](h
   - [2. Create a Discord bot](#2-create-a-discord-bot)
   - [2b. Create a Slack bot](#2b-create-a-slack-bot-optional--skip-if-using-discord-only)
   - [3. Configure environment](#3-configure-environment)
-  - [Optional: Semantic memory with Pinecone](#optional-semantic-memory-with-pinecone)
-  - [Optional: Google Workspace MCP (Drive/Docs/Slides/Sheets)](#optional-google-workspace-mcp-drivedocsslidessheets)
+  - Optional: Semantic memory with Pinecone (collapsed, under Setup)
+  - Optional: Google Workspace MCP (collapsed, under Setup)
   - [4. Run](#4-run)
 - [Deployment](#deployment)
 - [Adding a new agent](#adding-a-new-agent)
@@ -145,7 +145,7 @@ OLLAMA_BASE_URL=http://localhost:11434
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/your-username/agent-employees.git
+git clone https://github.com/eburakelevli/agent-employees.git
 cd agent-employees
 python -m venv .venv
 source .venv/bin/activate
@@ -218,7 +218,8 @@ LLM_PROVIDER=openai
 OPENAI_API_KEY=your_openai_api_key_here
 ```
 
-### Optional: Semantic memory with Pinecone
+<details>
+<summary><strong>Optional: Semantic memory with Pinecone</strong> (click to expand)</summary>
 
 By default, memory is a local JSON key-value store (`agent_memory.json`).
 
@@ -256,7 +257,10 @@ How it works:
 
 If Pinecone credentials or dependencies are missing, the app continues using local memory.
 
-### Optional: Google Workspace MCP (Drive/Docs/Slides/Sheets)
+</details>
+
+<details>
+<summary><strong>Optional: Google Workspace MCP (Drive/Docs/Slides/Sheets)</strong> (click to expand)</summary>
 
 This repo calls a remote/local MCP server over HTTP. It does not host Google OAuth directly and does not need your Google OAuth client secret.
 
@@ -372,6 +376,8 @@ Create a spreadsheet in that folder:
 - If startup logs show `Google Workspace MCP: not configured`, `.env` was not loaded or the key is missing.
 - Removing `GOOGLE_WORKSPACE_USER_EMAIL` disables this app from selecting your Google account, but it does not revoke OAuth access. Revoke access from Google Account -> Security -> Third-party apps & services.
 
+</details>
+
 ### 4. Run
 
 **Discord:**
@@ -389,7 +395,7 @@ python main.py --slack
 python main.py --provider openai
 python main.py --provider claude
 python main.py --provider ollama
-python main.py slack --provider ollama
+python main.py --slack --provider ollama
 ```
 
 ---
@@ -435,7 +441,6 @@ agent-employees/
 │   ├── expert.py       # Generic expert — any role assigned by the Planner
 │   ├── planner.py      # Creates execution plans from user tasks
 │   ├── researcher.py   # Web search + file reading
-│   ├── router.py       # Legacy/simple OpenAI router helper
 │   ├── summarizer.py   # Synthesizes multi-agent outputs
 │   └── writer.py       # Content and copy writing
 ├── tools/
@@ -445,7 +450,7 @@ agent-employees/
 │   ├── mcp_google_workspace.py # Google Workspace MCP tools
 │   └── memory.py       # Local or Pinecone-backed semantic memory
 ├── graph/
-│   └── workflow.py     # LangGraph state graph definition (not the default entry path)
+│   └── workflow.py     # LangGraph state-graph alternate implementation (bot.py/slack_bot.py is the default entry path)
 ├── bot.py              # Discord bot — orchestration, progress updates
 ├── slack_bot.py        # Slack bot — same logic, Socket Mode transport
 ├── config.py           # Environment variable loading
