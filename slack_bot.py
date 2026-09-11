@@ -7,7 +7,7 @@ from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
 from langchain_community.callbacks import get_openai_callback
 
 from config import LLM_PROVIDER, OLLAMA_MODEL, OPENAI_MODEL, CLAUDE_MODEL
-from agents.planner import create_plan
+from agents.planner import PlanValidationError, create_plan
 from agents.researcher import run_researcher
 from agents.writer import run_writer
 from agents.expert import run_expert
@@ -165,6 +165,8 @@ async def handle_mention(event, say, client):
             cost_line = f"`{OLLAMA_MODEL} (local) · no API cost`"
         await say(cost_line)
 
+    except PlanValidationError as e:
+        await say(str(e))
     except Exception as e:
         print(f"Error processing message: {e}")
         await say("Something went wrong. Try again.")
@@ -193,7 +195,11 @@ async def _run_plan(say, client, channel: str, content: str) -> str:
     resp = await say(f":brain: *Planning your task...* · `{_active_model()}`")
     ts = resp["ts"]
 
-    plan = await create_plan(content)
+    try:
+        plan = await create_plan(content)
+    except PlanValidationError:
+        await client.chat_update(channel=channel, ts=ts, text="⚠️ Planning failed.")
+        raise
 
     step_results = []
     for i, step in enumerate(plan):

@@ -4,7 +4,7 @@ import discord
 from config import LLM_PROVIDER, OLLAMA_MODEL, OPENAI_MODEL, CLAUDE_MODEL
 from langchain_community.callbacks import get_openai_callback
 
-from agents.planner import create_plan
+from agents.planner import PlanValidationError, create_plan
 from agents.researcher import run_researcher
 from agents.writer import run_writer
 from agents.expert import run_expert
@@ -168,6 +168,8 @@ class AgentBot(discord.Client):
                 cost_line = f"`{OLLAMA_MODEL} (local) · no API cost`"
             await message.channel.send(cost_line)
 
+        except PlanValidationError as e:
+            await message.reply(str(e))
         except Exception as e:
             print(f"Error processing message: {e}")
             await message.reply("Something went wrong. Try again.")
@@ -188,7 +190,11 @@ class AgentBot(discord.Client):
     async def _run_plan(self, message: discord.Message, content: str) -> str:
         status = await message.reply(f"🧠 **Planning your task...** · `{_active_model()}`")
 
-        plan = await create_plan(content)
+        try:
+            plan = await create_plan(content)
+        except PlanValidationError:
+            await status.edit(content="⚠️ Planning failed.")
+            raise
 
         step_results = []
         for i, step in enumerate(plan):

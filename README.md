@@ -33,6 +33,8 @@ Built with [LangChain](https://github.com/langchain-ai/langchain), [discord.py](
 
 Most messages go through a **Planner** that breaks the task into steps and assigns each one to a specialist agent. Agents pass context to one another so each step builds on the last. Progress is shown live as each step completes.
 
+Plans are validated before any agent runs: 1–8 steps, supported agent names, nonempty tasks, and a specific role for each expert. Plans with three or more steps must end with a summarizer. An invalid plan gets one repair attempt; if it still fails validation, the bot reports the failure without executing any steps.
+
 For simple requests, you can bypass planning by prefixing the message with `writer:`, `researcher:`, or `expert:`.
 
 ```
