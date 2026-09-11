@@ -1,468 +1,388 @@
 # Agent Employees
 
-A multi-agent bot that acts as your personal AI team. Give it a task and it plans the work, delegates to the right specialists, and shows live progress in **Discord** or **Slack**.
+An AI assistant for **Discord and Slack** that splits a request into focused tasks, assigns them to specialist agents, and brings their work together.
 
-Built with [LangChain](https://github.com/langchain-ai/langchain), [discord.py](https://github.com/Rapptz/discord.py), and [slack-bolt](https://github.com/slackapi/bolt-python). Orchestration (planning + step dispatch) is hand-rolled in `bot.py`/`slack_bot.py`; a [LangGraph](https://github.com/langchain-ai/langgraph) state-graph version of the same flow lives in `graph/workflow.py` as an alternate implementation, not the default entry path.
+Use it to research a topic, draft content, review an idea, or work with local files. Choose **OpenAI**, **Claude**, or a local model through **Ollama**. Optional integrations add semantic memory with Pinecone and file creation in Google Workspace.
 
----
+Give it a task in plain language:
 
-## Table of Contents
+```text
+@agent-employees research developer onboarding practices and draft a checklist for our team
+```
+
+The bot plans the work, shows which agent is running, and posts the results when the plan finishes. For a quick request, you can choose an agent directly:
+
+```text
+@agent-employees writer: make this introduction shorter and more welcoming: ...
+```
+
+## Contents
 
 - [How it works](#how-it-works)
-- [Agents](#agents)
-- [Tools](#tools)
-- [Usage](#usage)
-- [LLM Providers](#llm-providers)
-- [Setup](#setup)
-  - [1. Clone and install](#1-clone-and-install)
-  - [2. Create a Discord bot](#2-create-a-discord-bot)
-  - [2b. Create a Slack bot](#2b-create-a-slack-bot-optional--skip-if-using-discord-only)
-  - [3. Configure environment](#3-configure-environment)
-  - Optional: Semantic memory with Pinecone (collapsed, under Setup)
-  - Optional: Google Workspace MCP (collapsed, under Setup)
-  - [4. Run](#4-run)
+- [Getting started](#getting-started)
+- [Using the bot](#using-the-bot)
+- [Optional integrations](#optional-integrations)
+- [Data and current limitations](#data-and-current-limitations)
 - [Deployment](#deployment)
-- [Adding a new agent](#adding-a-new-agent)
-- [Adding a new tool](#adding-a-new-tool)
-- [Project structure](#project-structure)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
 - [License](#license)
-
----
 
 ## How it works
 
-Most messages go through a **Planner** that breaks the task into steps and assigns each one to a specialist agent. Agents pass context to one another so each step builds on the last. Progress is shown live as each step completes.
+For a normal request, the **Planner** creates a sequence of steps. Each agent receives the original request and the outputs of earlier steps, so it can build on their work.
 
-Plans are validated before any agent runs: 1–8 steps, supported agent names, nonempty tasks, and a specific role for each expert. Plans with three or more steps must end with a summarizer. An invalid plan gets one repair attempt; if it still fails validation, the bot reports the failure without executing any steps.
+| Agent | What it does | Available tools |
+| --- | --- | --- |
+| **Planner** | Breaks the request into steps and chooses the agents | — |
+| **Researcher** | Searches the web and gathers information | Web search, local file reading |
+| **Writer** | Drafts and edits emails, articles, posts, and other copy | — |
+| **Expert** | Handles analysis or tool use in an assigned role, such as Software Engineer or Marketing Strategist | Local file reading, Python execution, memory, Google Workspace |
+| **Summarizer** | Combines earlier outputs into a final response | — |
 
-For simple requests, you can bypass planning by prefixing the message with `writer:`, `researcher:`, or `expert:`.
+Plans are validated **before any step runs**. They must contain 1–8 steps, supported agent names, nonempty tasks, and a specific role for each expert. Plans with three or more steps must end with a summarizer. If validation fails, the planner gets one repair attempt. A second failure stops execution and produces a clear error.
 
-```
-You: @agent-employees build a content strategy for my AI startup
+The `writer:`, `researcher:`, and `expert:` prefixes skip planning and run that agent directly.
 
-🧠 Planning your task... · `gpt-4o-mini`
-↓
-Running plan:
-✅ 1. RESEARCHER — current AI startup trends
-⚙️ 2. EXPERT: Marketing Strategist
-⏳ 3. SUMMARIZER
-↓
-[STEP 1 — RESEARCHER] ...
-[STEP 2 — EXPERT: Marketing Strategist] ...
-[FINAL SYNTHESIS] ...
-gpt-4o-mini · 3,241 tokens · $0.00048
-```
+## Getting started
 
----
+You'll need **Python 3.10 or newer**, a Discord or Slack bot, and credentials for your chosen model provider. For Ollama, you'll need a running local server and a downloaded model.
 
-## Agents
+Pinecone and Google Workspace are optional. You can get the bot running first and add them later.
 
-| Agent | Role | Tools |
-|-------|------|-------|
-| **Planner** | Breaks any task into steps, assigns agents, coordinates context passing | — |
-| **Researcher** | Web search, fact-finding, trend analysis, current events | `web_search`, `read_file` |
-| **Writer** | Emails, blog posts, social media copy, articles, drafts | — |
-| **Expert** | Any domain expertise — Planner assigns a specific role (e.g. Senior Software Engineer, Senior AI Engineer, Product Manager) | `read_file`, `run_python`, memory tools, Google Workspace MCP tools |
-| **Summarizer** | Synthesizes outputs from multiple agents into a final response | — |
-
----
-
-## Tools
-
-| Tool | Available to | Description |
-|------|-------------|-------------|
-| `web_search` | Researcher | DuckDuckGo web search |
-| `read_file` | Researcher, Expert | Read any local file — text, code, PDF |
-| `run_python` | Expert | Execute Python code for calculations or data analysis |
-| `save_memory` | Expert | Persist a fact or preference across conversations |
-| `recall_memory` | Expert | Retrieve a previously saved memory (semantic if Pinecone backend is enabled) |
-| `list_memories` | Expert | List all stored memories |
-| `delete_memory` | Expert | Remove a stored memory |
-| `mcp_create_drive_folder` | Expert | Create Google Drive folders via MCP |
-| `mcp_create_google_doc` | Expert | Create Google Docs via MCP |
-| `mcp_create_google_slides` | Expert | Create Google Slides decks via MCP |
-| `mcp_create_google_sheet` | Expert | Create Google Sheets spreadsheets via MCP |
-
----
-
-## Usage
-
-**Let the Planner decide (recommended for complex tasks):**
-```
-@agent-employees review this system architecture: ...
-@agent-employees write a cold outreach email to a VC firm
-@agent-employees what are the best index funds for a UK investor?
-@agent-employees read /path/to/report.pdf and summarise it
-```
-
-**Target an agent directly (faster for simple tasks):**
-```
-@agent-employees writer: write a tweet about multi-agent AI
-@agent-employees researcher: latest news on OpenAI
-@agent-employees expert: remember that my preferred tone is direct and concise
-```
-
-**Follow-up questions work across messages:**
-```
-@agent-employees what is the best Python web framework?
-@agent-employees what was my previous question?
-@agent-employees expand on that
-```
-
-In Discord, you can `@mention` the bot in a server or send it a DM. In Slack, `@mention` it in a channel where it has been invited. The active model is shown after every response, and OpenAI runs also show token usage and estimated cost.
-
-Runtime data is stored locally by default:
-- Conversation history: `conversation_history.json`
-- Local memory: `agent_memory.json`
-- Pinecone delete manifest: `agent_memory_manifest.json`
-
----
-
-## LLM Providers
-
-Supports **OpenAI**, **Claude**, and **Ollama** (local models). Set `LLM_PROVIDER` in your `.env` to choose the default provider, or override it per run with `--provider`.
-
-```env
-# OpenAI (default)
-LLM_PROVIDER=openai
-OPENAI_API_KEY=your_key_here
-OPENAI_MODEL=gpt-4o-mini
-
-# Anthropic / Claude
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-CLAUDE_MODEL=claude-sonnet-4-6
-
-# Ollama (local — run `ollama serve` first)
-LLM_PROVIDER=ollama
-OLLAMA_MODEL=llama3.2     # or mistral, qwen2.5, etc.
-OLLAMA_BASE_URL=http://localhost:11434
-```
-
-> **Note:** The Researcher uses tool calling (web search). This requires a model that supports it — `llama3.1`, `llama3.2`, `qwen2.5`, and `mistral-nemo` all work. Older models will answer from training data only.
-
----
-
-## Setup
-
-### 1. Clone and install
+### 1. Install the project
 
 ```bash
 git clone https://github.com/eburakelevli/agent-employees.git
 cd agent-employees
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-Requires Python 3.10 or newer.
-
-### 2. Create a Discord bot
-
-1. Go to [discord.com/developers/applications](https://discord.com/developers/applications)
-2. **New Application** → name it → go to the **Bot** tab
-3. Click **Reset Token** → copy it
-4. Under **Privileged Gateway Intents**, enable **Message Content Intent**
-5. Go to **OAuth2 → URL Generator** → select scope `bot` → permissions: `Send Messages`, `Read Message History`, `View Channels`
-6. Open the generated URL in your browser to add the bot to your server
-
-### 2b. Create a Slack bot (optional — skip if using Discord only)
-
-> Uses **Socket Mode** — no public URL or server needed, works locally or on Railway out of the box.
-
-1. Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From scratch**
-2. Name it (e.g. `agent-employees`) and pick your workspace → **Create App**
-
-**Enable Socket Mode:**
-3. In the left sidebar go to **Socket Mode** → toggle **Enable Socket Mode** ON
-4. It will prompt you to create an App-Level Token — name it anything, grant the `connections:write` scope → **Generate**
-5. Copy the token (starts with `xapp-`) — this is your `SLACK_APP_TOKEN`
-
-**Add Bot permissions:**
-6. Go to **OAuth & Permissions** in the sidebar
-7. Under **Bot Token Scopes** add: `app_mentions:read`, `chat:write`, `channels:history`, `im:history`
-8. Go to **Install App** → **Install to Workspace** → Allow
-9. Copy the **Bot User OAuth Token** (starts with `xoxb-`) — this is your `SLACK_BOT_TOKEN`
-
-**Subscribe to events:**
-10. Go to **Event Subscriptions** → toggle **Enable Events** ON
-11. Under **Subscribe to bot events** add: `app_mention`
-12. Click **Save Changes**
-
-**Invite the bot to a channel:**
-13. In Slack, open any channel → type `/invite @agent-employees`
-
-Add both tokens to your `.env`:
-```env
-SLACK_BOT_TOKEN=xoxb-your-token-here
-SLACK_APP_TOKEN=xapp-your-token-here
-```
-
-### 3. Configure environment
-
-```bash
+python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit `.env` with your keys — see `.env.example` for all available options.
+On Windows PowerShell, use `.venv\Scripts\Activate.ps1` to activate the environment and `Copy-Item .env.example .env` to copy the configuration file.
 
-Set the token for the platform you plan to run, plus credentials for your chosen LLM provider:
+### 2. Connect a chat platform
 
-```env
-# Discord mode
-DISCORD_BOT_TOKEN=your_discord_bot_token_here
-
-# Slack mode
-SLACK_BOT_TOKEN=xoxb-your-token-here
-SLACK_APP_TOKEN=xapp-your-token-here
-
-# Pick one provider
-LLM_PROVIDER=openai
-OPENAI_API_KEY=your_openai_api_key_here
-```
+Choose the platform you want to use. Each bot process connects to one platform.
 
 <details>
-<summary><strong>Optional: Semantic memory with Pinecone</strong> (click to expand)</summary>
+<summary><strong>Discord setup</strong></summary>
 
-By default, memory is a local JSON key-value store (`agent_memory.json`).
+1. Open the [Discord Developer Portal](https://discord.com/developers/applications) and create an application.
+2. Open **Bot**, generate or reset the bot token, and copy it.
+3. Under **Privileged Gateway Intents**, enable [Message Content Intent](https://docs.discord.com/developers/events/gateway#message-content-intent).
+4. In **OAuth2 → URL Generator**, select the `bot` scope and the permissions **View Channels**, **Send Messages**, and **Read Message History**.
+5. Open the generated invite URL and add the bot to your server.
+6. Set the token in your `.env` file:
 
-To enable semantic memory (vector search), set `MEMORY_BACKEND=pinecone` and provide Pinecone plus OpenAI credentials. The `pinecone` package is already included in `requirements.txt`.
+```env
+DISCORD_BOT_TOKEN=your_discord_bot_token
+```
 
-> **Note:** Semantic memory uses OpenAI embeddings, so `OPENAI_API_KEY` is required even when your chat provider is Claude or Ollama.
+You can mention the bot in a server channel or send it a direct message.
 
-Then add to your `.env`:
+</details>
+
+<details>
+<summary><strong>Slack setup</strong></summary>
+
+The Slack bot uses [Socket Mode](https://docs.slack.dev/apis/events-api/using-socket-mode/), so it doesn't need a public HTTP endpoint.
+
+1. Open [Your Apps](https://api.slack.com/apps), choose **Create New App → From scratch**, and select your workspace.
+2. Enable **Socket Mode**. Create an app-level token with the `connections:write` scope. This token starts with `xapp-`.
+3. Under **OAuth & Permissions → Bot Token Scopes**, add [`app_mentions:read`](https://docs.slack.dev/reference/events/app_mention/) and [`chat:write`](https://docs.slack.dev/reference/scopes/chat.write/).
+4. Under **Event Subscriptions**, enable events and subscribe to the bot event `app_mention`. Save your changes.
+5. Install the app to your workspace and copy its **Bot User OAuth Token**, which starts with `xoxb-`. Reinstall the app if you change its scopes later.
+6. Invite the bot to a channel with `/invite @agent-employees`, using your app's actual name.
+7. Set both tokens in `.env`:
+
+```env
+SLACK_BOT_TOKEN=xoxb-your-bot-token
+SLACK_APP_TOKEN=xapp-your-app-token
+```
+
+Mention the bot in a channel it has joined. This implementation listens for channel mentions; it does not handle Slack direct messages.
+
+</details>
+
+### 3. Choose a model provider
+
+Edit `.env` using **one** of the configurations below. You only need credentials for the provider you choose, unless you also enable Pinecone memory.
+
+<details open>
+<summary><strong>OpenAI — the default provider</strong></summary>
+
+```env
+LLM_PROVIDER=openai
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_MODEL=gpt-4o-mini
+```
+
+</details>
+
+<details>
+<summary><strong>Anthropic / Claude</strong></summary>
+
+```env
+LLM_PROVIDER=claude
+ANTHROPIC_API_KEY=your_anthropic_api_key
+CLAUDE_MODEL=claude-sonnet-4-6
+```
+
+</details>
+
+<details>
+<summary><strong>Ollama — local models</strong></summary>
+
+Start your Ollama server and download the model you want to use. Then configure:
+
+```env
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2
+```
+
+The Researcher and Expert require a model that supports tool calling. An incompatible model may fail when those agents run. Planning also requires reliable JSON output.
+
+</details>
+
+These examples use the defaults in [config.py](config.py). All available settings are listed in [.env.example](.env.example). Restart the bot after changing `.env`.
+
+### 4. Run the bot
+
+Run commands from the project directory with your virtual environment active.
+
+| Platform | Command |
+| --- | --- |
+| Discord | `python main.py` |
+| Slack | `python main.py --slack` |
+
+To override the provider for one run:
+
+```bash
+python main.py --provider claude
+python main.py --slack --provider ollama
+```
+
+Check the startup log for the selected provider, model, and integration settings. Then send a first message:
+
+```text
+@agent-employees writer: write a friendly welcome message for a new teammate
+```
+
+In a Discord DM, you can leave out the mention. Keep the process running while you use the bot.
+
+## Using the bot
+
+**Let the planner choose the steps:**
+
+```text
+@agent-employees research our competitors and draft a positioning statement: ...
+@agent-employees review this architecture and suggest improvements: ...
+@agent-employees read /path/to/report.pdf and summarise the main findings
+```
+
+File paths refer to files on the machine running the bot. Chat attachments are not downloaded automatically.
+
+**Choose an agent directly:**
+
+```text
+@agent-employees writer: draft a short product launch announcement
+@agent-employees researcher: find recent developments in open-source AI
+@agent-employees expert: remember that my preferred writing tone is direct and concise
+```
+
+**Ask a follow-up:**
+
+```text
+@agent-employees make that draft more conversational
+@agent-employees what was my previous question?
+```
+
+The bot includes recent conversation history with your next request. Successful requests show the active model; OpenAI requests also show token usage and an estimated cost.
+
+## Optional integrations
+
+### Semantic memory with Pinecone
+
+<details>
+<summary><strong>Setup and behavior</strong></summary>
+
+By default, the Expert stores memories in a local JSON file and recalls them by exact key. Pinecone enables similarity search, so a related phrase can retrieve a saved memory.
+
+Add these settings to `.env`:
 
 ```env
 MEMORY_BACKEND=pinecone
+OPENAI_API_KEY=your_openai_api_key
 MEMORY_EMBEDDING_MODEL=text-embedding-3-small
 MEMORY_TOP_K=3
-
-PINECONE_API_KEY=your_pinecone_api_key_here
+PINECONE_API_KEY=your_pinecone_api_key
 PINECONE_INDEX_NAME=agent-employees-memory
 PINECONE_NAMESPACE=default
 PINECONE_CLOUD=aws
 PINECONE_REGION=us-east-1
 ```
 
-To confirm it's active, check the startup log — you should see:
-```
-Memory backend: Pinecone (index=agent-employees-memory, namespace=default)
-```
-If it says `local`, one of the required env vars is missing or the package isn't installed.
+Memory embeddings use OpenAI even when your chat provider is Claude or Ollama. The app creates the named Pinecone index on first use if it doesn't exist.
 
-**Viewing your vectors:** Go to [console.pinecone.io](https://console.pinecone.io) → select your index → **Namespace** tab to browse records and inspect metadata (`key`, `value`, `created_at`). The **Metrics** tab shows read/write usage and storage.
+The Expert has four memory tools:
 
-How it works:
-- `save_memory(key, value)` embeds the memory text and upserts it to Pinecone with metadata.
-- `recall_memory(query)` performs semantic similarity search and returns the best match.
-- `list_memories()` reads known memory keys from a local manifest used for stable deletes.
-- `delete_memory(key)` removes the corresponding vector by ID from Pinecone.
+| Tool | Behavior with Pinecone |
+| --- | --- |
+| `save_memory` | Embeds and saves a key/value pair |
+| `recall_memory` | Searches for similar memories and returns the top match |
+| `list_memories` | Lists keys recorded in the local manifest |
+| `delete_memory` | Uses the local manifest to find and delete the vector |
 
-If Pinecone credentials or dependencies are missing, the app continues using local memory.
+After restarting, the startup log should show `Memory backend: Pinecone`. This confirms the configuration was selected; the connection is exercised when a memory tool runs. You can inspect stored vectors in the [Pinecone console](https://console.pinecone.io).
+
+If required credentials or dependencies are missing, the app selects local memory. Once Pinecone is selected, a failed save or query returns an error rather than silently switching back to local storage.
+
+Keep `agent_memory_manifest.json` alongside your deployment: the current implementation needs it to list and delete Pinecone memories.
 
 </details>
 
+### Google Workspace through MCP
+
 <details>
-<summary><strong>Optional: Google Workspace MCP (Drive/Docs/Slides/Sheets)</strong> (click to expand)</summary>
+<summary><strong>Setup and a first test</strong></summary>
 
-This repo calls a remote/local MCP server over HTTP. It does not host Google OAuth directly and does not need your Google OAuth client secret.
+The Expert can create Drive folders, Google Docs, Slides files, and spreadsheets through a separate **Model Context Protocol (MCP)** server. This repository contains the client; the server handles Google authentication and API access.
 
-How the pieces fit:
-- `agent-employees` is the MCP client. It sends JSON-RPC calls to `GOOGLE_WORKSPACE_MCP_URL`.
-- The Google Workspace MCP server is a separate process you run locally/remotely.
-- Google OAuth credentials (`client_id` / `client_secret`) are for the MCP server process, not this repo's app process.
-- `GOOGLE_WORKSPACE_USER_EMAIL` tells the MCP server which already-authorized Google account to use. It does not grant access by itself; access comes from the Google OAuth consent flow.
+**1. Set up the MCP server.**
 
-#### 1) Create Google OAuth credentials
+The integration uses tools exposed by [Google Workspace MCP](https://github.com/taylorwilsdon/google_workspace_mcp). Follow its [setup guide](https://workspacemcp.com/quick-start) to configure Google OAuth, enable the Google APIs you need, and authorise your account. Use its Streamable HTTP transport and enable the creation tools this client calls: `create_drive_folder`, `create_drive_file`, and `create_spreadsheet`.
 
-In Google Cloud Console:
+Google OAuth client credentials belong to the MCP server's configuration. This bot does not read `GOOGLE_OAUTH_CLIENT_ID` or `GOOGLE_OAUTH_CLIENT_SECRET` or perform the MCP server's OAuth login flow.
 
-1. Create or select a Google Cloud project.
-2. Enable these APIs:
-   - Google Drive API
-   - Google Sheets API
-3. Go to **APIs & Services -> OAuth consent screen**.
-4. For personal Gmail accounts, use:
-   - User type: `External`
-   - Publishing status: `Testing`
-   - Test users: add your Gmail address
-5. Go to **APIs & Services -> Credentials**.
-6. Create an **OAuth client ID**.
-7. Use application type **Desktop app**.
-8. Copy the generated:
-   - Client ID
-   - Client secret
+**2. Connect the bot.**
 
-Do not publish the app for local testing. Keeping it in `Testing` limits authorization to the test users you add.
-
-#### 2) Start a Google Workspace MCP server separately
-
-One working MCP server option:
-- [taylorwilsdon/google_workspace_mcp](https://github.com/taylorwilsdon/google_workspace_mcp)
-
-In a separate terminal, export the Google OAuth values for the MCP server process, then start it:
-
-```bash
-export GOOGLE_OAUTH_CLIENT_ID="your_client_id.apps.googleusercontent.com"
-export GOOGLE_OAUTH_CLIENT_SECRET="your_client_secret"
-uvx workspace-mcp --transport streamable-http
-```
-
-First run may prompt an OAuth login flow in your browser.
-
-Keep this MCP terminal running while the bot is running.
-
-#### 3) Configure this app
-
-Set these in `.env`:
+Set the endpoint and authorised Google account in `.env`. For a server running locally on port 8000:
 
 ```env
 GOOGLE_WORKSPACE_MCP_URL=http://127.0.0.1:8000/mcp
+GOOGLE_WORKSPACE_USER_EMAIL=your.email@gmail.com
 GOOGLE_WORKSPACE_MCP_BEARER_TOKEN=
 GOOGLE_WORKSPACE_MCP_TIMEOUT_SECONDS=30
-GOOGLE_WORKSPACE_USER_EMAIL=your.email@gmail.com
 ```
 
-`GOOGLE_WORKSPACE_MCP_BEARER_TOKEN` is only needed if your MCP server requires bearer auth.
-`GOOGLE_WORKSPACE_MCP_URL` is the MCP endpoint this app will call (default local path: `/mcp` on port `8000`).
-`GOOGLE_WORKSPACE_USER_EMAIL` must match the Google account you authorized in the MCP browser OAuth flow.
+If the server requires a bearer token, supply it in `GOOGLE_WORKSPACE_MCP_BEARER_TOKEN`. The email selects an already-authorised account; it does not grant access on its own. For a remote server, use its actual endpoint.
 
-Do not put `GOOGLE_OAUTH_CLIENT_SECRET` in this repo's `.env` unless you also change your MCP server startup to read it from there. This app does not use that value.
+**3. Restart the bot and create a test file.**
 
-#### 4) Verify MCP endpoint
-
-Quick browser click to `/mcp` may show:
-- `406 Not Acceptable` (expected for plain browser requests)
-
-The endpoint is still healthy as long as the server process is running.
-
-#### 5) Run and test
-
-Restart the app after env changes:
-
-Discord:
-
-```bash
-python main.py --provider openai
-```
-
-Slack:
-
-```bash
-python main.py --slack --provider openai
-```
-
-Then test direct Expert tool usage:
+Keep the MCP server running, restart the bot, and send:
 
 ```text
-@agent-employees expert: use mcp_create_google_sheet with title "AE MCP Sheet" and folder_id "root"
+@agent-employees expert: use mcp_create_google_sheet with title "Agent Employees Test" and folder_id "root"
 ```
 
-Create a Drive folder:
+To create a folder:
 
 ```text
-@agent-employees expert: use mcp_create_drive_folder to create a folder named "AE MCP Test". Return only the folder ID.
+@agent-employees expert: use mcp_create_drive_folder to create a folder named "Project Notes". Return the folder ID.
 ```
 
-Create a spreadsheet in that folder:
+You can use that ID as `folder_id` in a later file-creation request. Without a folder ID, files are created in Drive's root folder.
 
-```text
-@agent-employees expert: use mcp_create_google_sheet with title "AE MCP Sheet", folder_id "<PASTE_FOLDER_ID>"
-```
-
-#### Notes
-
-- If you do not pass `folder_id` / `parent_folder_id`, tools default to Google Drive `root`.
-- To find a folder ID, open the folder in Google Drive and copy the part after `/folders/` in the URL.
-- If Slack still says MCP URL is not configured, restart the bot process after editing `.env`.
-- For reliable tool calling during setup, prefer `LLM_PROVIDER=openai` or `LLM_PROVIDER=claude`.
-- If startup logs show `Google Workspace MCP: not configured`, `.env` was not loaded or the key is missing.
-- Removing `GOOGLE_WORKSPACE_USER_EMAIL` disables this app from selecting your Google account, but it does not revoke OAuth access. Revoke access from Google Account -> Security -> Third-party apps & services.
+The current Slides and Sheets tools create files; they do not populate slides, cells, or charts. The Docs tool also accepts initial text content. Tool availability and authentication must match your MCP server's configuration.
 
 </details>
 
-### 4. Run
+## Data and current limitations
 
-**Discord:**
-```bash
-python main.py
-```
+The bot stores these files in its working directory. They are excluded from Git.
 
-**Slack:**
-```bash
-python main.py --slack
-```
+| File | Purpose |
+| --- | --- |
+| `conversation_history.json` | Last 10 exchanges per user; previous answers are shortened when included in a prompt |
+| `agent_memory.json` | Local memory keys and values |
+| `agent_memory_manifest.json` | Pinecone memory keys and vector IDs used for listing and deletion |
 
-**Override the LLM provider for one run:**
-```bash
-python main.py --provider openai
-python main.py --provider claude
-python main.py --provider ollama
-python main.py --slack --provider ollama
-```
+A few details matter when choosing where to run it:
 
----
+- **Tool access:** Python execution runs with the bot process's permissions and environment. File reading can access files readable by that process. The app currently has no user allowlist or code-execution sandbox.
+- **Shared context:** memory is shared across users of the bot instance. Conversation history is keyed by user, without channel or thread separation, so a later channel request can reuse context from a private conversation.
+- **Response length:** chat output is currently truncated to fit the bot's message limits. Long documents may need a different delivery approach.
+
+The current setup is best suited to personal use in an environment you control. These boundaries need additional work before opening the bot to untrusted users.
 
 ## Deployment
 
-For 24/7 uptime without running it locally, deploy to [Railway](https://railway.app):
-
-1. Push this repo to GitHub
-2. New Project → Deploy from GitHub repo
-3. Add your environment variables in the **Variables** tab
-4. Railway auto-deploys on every push
-
-The included `Procfile` runs Discord mode:
+Run the bot as a persistent worker process. The included [Procfile](Procfile) starts Discord mode:
 
 ```procfile
 worker: python main.py
 ```
 
-To run Slack mode on Railway, set the service start command to `python main.py --slack` or update the `Procfile`.
+For Slack, use `python main.py --slack` as the service's start command. Set your platform tokens and provider credentials through your host's environment settings.
 
----
+If you use Railway, configure [persistent storage](https://docs.railway.com/volumes/reference) for runtime data you want to keep across deployments. The current storage paths are relative to the process's working directory, so your deployment must place those files on persistent storage. Run a single instance against the JSON files; they do not support concurrent writers safely.
 
-## Adding a new agent
+A hosted bot also needs network access to its model provider and any MCP server. `127.0.0.1` refers to the bot's own host, so a hosted bot cannot use that address to reach a server on your laptop.
 
-1. Create `agents/your_agent.py` with an `async def run_your_agent(task: str) -> str` function
-2. Add it to `_dispatch` in both `bot.py` (Discord) and `slack_bot.py` (Slack)
-3. Add it to the available agents list in the Planner prompt in `agents/planner.py`
-4. If you want direct-prefix support, add it to the forced-agent list in both `bot.py` and `slack_bot.py`
+## Troubleshooting
 
-## Adding a new tool
+| Problem | What to check |
+| --- | --- |
+| The bot reports missing tokens | Replace the placeholders in `.env` for the platform you are running, then restart. |
+| Discord does not respond | Enable Message Content Intent, check channel permissions, and mention the bot or use a DM. |
+| Slack does not respond | Check Socket Mode, both tokens, the `app_mention` subscription, and the bot's channel membership. |
+| The wrong model is running | Check `LLM_PROVIDER`, the matching model setting, and any `--provider` override. |
+| An Ollama agent fails on tools | Check that the server is running, the model is downloaded, and it supports tool calling. |
+| Planning fails after two attempts | Make the request more specific. No plan steps ran. If it keeps happening, check the model's JSON output capability. |
+| Pinecone logs show local memory | Check `MEMORY_BACKEND`, Pinecone settings, the OpenAI key, and installed dependencies. |
+| Google Workspace is not configured | Set `GOOGLE_WORKSPACE_MCP_URL` and restart the bot. |
+| An MCP request fails | Check server logs, connectivity, bearer-token requirements, and Google account authorisation. |
 
-1. Create `tools/your_tool.py` with a `@tool` decorated function
-2. Import it in the relevant agent(s) and add it to that agent's `bind_tools(...)` call
+For other failures, check the terminal running the bot for its error message.
 
----
+## Development
 
-## Project structure
+The project uses LangChain for model and tool integration, `discord.py` for Discord, and `slack-bolt` for Slack. The default entry point runs the orchestration in `bot.py` or `slack_bot.py`. `graph/workflow.py` contains an alternate LangGraph implementation.
 
+### Run the tests
+
+From the project directory, after installing dependencies:
+
+```bash
+python -m unittest discover -s tests -v
 ```
+
+The tests cover plan validation, the single repair attempt, and rejection of invalid plans before execution in Discord, Slack, and the graph workflow. They use mocked model calls and require no live service credentials.
+
+### Add an agent
+
+1. Create an async agent function in `agents/` that returns a response string.
+2. Add the agent name to the `Step.agent` allowed values and describe it in `PLANNER_PROMPT` in `agents/planner.py`.
+3. Register it in `_dispatch` in both `bot.py` and `slack_bot.py`.
+4. For direct-prefix support, update each bot's prefix detection and `_run_single` dispatch.
+5. If you use the alternate graph, update its routing and execution too. Add tests for the new behavior.
+
+### Add a tool
+
+Define the tool with LangChain's `@tool` decorator, then add it to `EXPERT_TOOLS` or `RESEARCHER_TOOLS` in the corresponding agent module. Those lists are used for both model tool binding and execution lookup. Update the agent prompt, and the planner prompt if the capability affects routing.
+
+### Project layout
+
+```text
 agent-employees/
-├── agents/
-│   ├── expert.py       # Generic expert — any role assigned by the Planner
-│   ├── planner.py      # Creates execution plans from user tasks
-│   ├── researcher.py   # Web search + file reading
-│   ├── summarizer.py   # Synthesizes multi-agent outputs
-│   └── writer.py       # Content and copy writing
-├── tools/
-│   ├── code_runner.py  # Python code execution
-│   ├── file_reader.py  # Local file reading (text + PDF)
-│   ├── history.py      # Per-user conversation history
-│   ├── mcp_google_workspace.py # Google Workspace MCP tools
-│   └── memory.py       # Local or Pinecone-backed semantic memory
-├── graph/
-│   └── workflow.py     # LangGraph state-graph alternate implementation (bot.py/slack_bot.py is the default entry path)
-├── bot.py              # Discord bot — orchestration, progress updates
-├── slack_bot.py        # Slack bot — same logic, Socket Mode transport
-├── config.py           # Environment variable loading
-├── llm.py              # LLM provider factory (OpenAI / Ollama / Claude)
-├── main.py             # Entry point (--slack flag for Slack mode)
-└── requirements.txt
+├── agents/                     # Planner, researcher, writer, expert, summarizer
+├── tools/                      # Files, Python execution, history, memory, MCP
+├── graph/workflow.py           # Alternate LangGraph workflow
+├── tests/test_planner.py        # Plan validation and execution-boundary tests
+├── bot.py                      # Discord handlers and orchestration
+├── slack_bot.py                # Slack handlers and orchestration
+├── config.py                   # Environment settings
+├── llm.py                      # Model provider factory
+├── main.py                     # CLI entry point
+├── .env.example                # Configuration reference
+├── requirements.txt            # Python dependencies
+└── Procfile                    # Default worker command
 ```
-
----
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[MIT](LICENSE). You're welcome to use, adapt, and build on the project.
