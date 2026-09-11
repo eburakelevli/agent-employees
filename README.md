@@ -117,7 +117,7 @@ Edit `.env` using **one** of the configurations below. You only need credentials
 ```env
 LLM_PROVIDER=openai
 OPENAI_API_KEY=your_openai_api_key
-OPENAI_MODEL=gpt-4o-mini
+OPENAI_MODEL=gpt-6
 ```
 
 </details>
@@ -128,7 +128,7 @@ OPENAI_MODEL=gpt-4o-mini
 ```env
 LLM_PROVIDER=claude
 ANTHROPIC_API_KEY=your_anthropic_api_key
-CLAUDE_MODEL=claude-sonnet-4-6
+CLAUDE_MODEL=claude-fable-5.1
 ```
 
 </details>
